@@ -32,9 +32,11 @@ print(f"Shape setelah cleansing: {df.shape}")
 
 """ ================= Pra-Proses Data =================  """
 
-# Encoding kategorikal — OrdinalEncoder lebih stabil dari LabelEncoder untuk DataFrame
-cat_cols = df.select_dtypes(include='object').columns.tolist()
-df[cat_cols] = OrdinalEncoder().fit_transform(df[cat_cols])
+# Encoding kategorikal —  One-Hot Encoding
+df = pd.get_dummies(df,
+     columns=['Sex','ChestPainType','RestingECG',
+              'ExerciseAngina','ST_Slope'],
+     drop_first=True)
 
 # Split fitur & target
 X = df.drop(columns='HeartDisease')
