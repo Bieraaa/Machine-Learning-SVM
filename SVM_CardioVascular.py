@@ -112,7 +112,7 @@ def evaluate(model, X_test, y_test, X_train, y_train, label):
         print(f"  {k:<12}: {v:.4f}")
     print(f"\n{classification_report(y_test, y_pred, target_names=['Normal','Heart Disease'])}")
     return y_pred, y_prob, metrics
- 
+
 y_pred_svm, y_prob_svm, metrics_svm = evaluate(
     best_svm, X_test_sc, y_test, X_train_sc, y_train, "SVM"
 )
@@ -123,25 +123,22 @@ y_pred_rf, y_prob_rf, metrics_rf = evaluate(
 """ ================= Visualisasi =================  """
 
 fig, axes = plt.subplots(2, 3, figsize=(18, 11))
-fig.suptitle('Perbandingan SVM vs Random Forest — Heart Failure Prediction',
-             fontsize=14, fontweight='bold', y=1.01)
- 
+fig.suptitle('Perbandingan SVM vs Random Forest — Heart Failure Prediction', fontsize=14, fontweight='bold', y=1.01)
+
 # ── Confusion Matrix SVM ─────────────────────────────────────────
 sns.heatmap(confusion_matrix(y_test, y_pred_svm), annot=True, fmt='d',
             cmap='Blues', ax=axes[0][0],
             xticklabels=['Normal','Heart Disease'],
             yticklabels=['Normal','Heart Disease'])
-axes[0][0].set(title='Confusion Matrix — SVM',
-               ylabel='Actual', xlabel='Predicted')
- 
-# ── Confusion Matrix RF ──────────────────────────────────────────
+axes[0][0].set(title='Confusion Matrix — SVM', ylabel='Actual', xlabel='Predicted')
+
+# ── Confusion Matrix Random Forest ──────────────────────────────────────────
 sns.heatmap(confusion_matrix(y_test, y_pred_rf), annot=True, fmt='d',
             cmap='Greens', ax=axes[0][1],
             xticklabels=['Normal','Heart Disease'],
             yticklabels=['Normal','Heart Disease'])
-axes[0][1].set(title='Confusion Matrix — Random Forest',
-               ylabel='Actual', xlabel='Predicted')
- 
+axes[0][1].set(title='Confusion Matrix — Random Forest', ylabel='Actual', xlabel='Predicted')
+
 # ── ROC Curve (keduanya dalam satu grafik) ───────────────────────
 fpr_svm, tpr_svm, _ = roc_curve(y_test, y_prob_svm)
 fpr_rf,  tpr_rf,  _ = roc_curve(y_test, y_prob_rf)
@@ -152,31 +149,30 @@ axes[0][2].plot(fpr_rf,  tpr_rf,  color='seagreen',  lw=2,
 axes[0][2].plot([0,1],[0,1], 'k--', lw=1)
 axes[0][2].fill_between(fpr_svm, tpr_svm, alpha=0.05, color='steelblue')
 axes[0][2].fill_between(fpr_rf,  tpr_rf,  alpha=0.05, color='seagreen')
-axes[0][2].set(title='ROC Curve — SVM vs Random Forest',
-               xlabel='False Positive Rate', ylabel='True Positive Rate')
+axes[0][2].set(title='ROC Curve — SVM vs Random Forest', xlabel='False Positive Rate', ylabel='True Positive Rate')
 axes[0][2].legend()
- 
+
 # ── Bar Chart Perbandingan Metrik ────────────────────────────────
 fig3, ax3 = plt.subplots(figsize=(10, 6))
- 
+
 metric_names  = ['Accuracy', 'Precision', 'Recall', 'F1-Score', 'ROC-AUC']
 svm_scores    = [metrics_svm[m] for m in metric_names]
 rf_scores     = [metrics_rf[m]  for m in metric_names]
 x             = np.arange(len(metric_names))
 width         = 0.35
- 
+
 bars1 = ax3.bar(x - width/2, svm_scores, width, label='SVM',
                 color='steelblue', alpha=0.85)
 bars2 = ax3.bar(x + width/2, rf_scores,  width, label='Random Forest',
                 color='seagreen',  alpha=0.85)
- 
+
 ax3.set_ylim(0, 1.15)
 ax3.set_xticks(x)
 ax3.set_xticklabels(metric_names)
 ax3.set(title='Perbandingan Metrik Evaluasi — SVM vs Random Forest',
         ylabel='Score')
 ax3.legend()
- 
+
 for bar in bars1:
     ax3.text(bar.get_x() + bar.get_width() / 2,
              bar.get_height() + 0.02,
@@ -187,11 +183,11 @@ for bar in bars2:
              bar.get_height() + 0.02,
              f'{bar.get_height():.3f}',
              ha='center', va='bottom', fontsize=10)
- 
+
 plt.tight_layout()
 plt.savefig('3_metric_comparison.png', dpi=150, bbox_inches='tight')
 plt.show()
- 
+
 print("\nSelesai! File disimpan:")
 print("  → 1_confusion_matrix.png")
 print("  → 2_roc_curve.png")
