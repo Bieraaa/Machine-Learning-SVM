@@ -157,60 +157,42 @@ axes[0][2].set(title='ROC Curve — SVM vs Random Forest',
 axes[0][2].legend()
  
 # ── Bar Chart Perbandingan Metrik ────────────────────────────────
-metric_names  = ['Accuracy','Precision','Recall','F1-Score','ROC-AUC']
+fig3, ax3 = plt.subplots(figsize=(10, 6))
+ 
+metric_names  = ['Accuracy', 'Precision', 'Recall', 'F1-Score', 'ROC-AUC']
 svm_scores    = [metrics_svm[m] for m in metric_names]
 rf_scores     = [metrics_rf[m]  for m in metric_names]
 x             = np.arange(len(metric_names))
 width         = 0.35
  
-bars1 = axes[1][0].bar(x - width/2, svm_scores, width, label='SVM',
-                        color='steelblue', alpha=0.85)
-bars2 = axes[1][0].bar(x + width/2, rf_scores,  width, label='Random Forest',
-                        color='seagreen',  alpha=0.85)
-axes[1][0].set_ylim(0, 1.15)
-axes[1][0].set_xticks(x)
-axes[1][0].set_xticklabels(metric_names, rotation=15)
-axes[1][0].set(title='Perbandingan Metrik Evaluasi', ylabel='Score')
-axes[1][0].legend()
+bars1 = ax3.bar(x - width/2, svm_scores, width, label='SVM',
+                color='steelblue', alpha=0.85)
+bars2 = ax3.bar(x + width/2, rf_scores,  width, label='Random Forest',
+                color='seagreen',  alpha=0.85)
+ 
+ax3.set_ylim(0, 1.15)
+ax3.set_xticks(x)
+ax3.set_xticklabels(metric_names)
+ax3.set(title='Perbandingan Metrik Evaluasi — SVM vs Random Forest',
+        ylabel='Score')
+ax3.legend()
+ 
 for bar in bars1:
-    axes[1][0].text(bar.get_x() + bar.get_width()/2,
-                    bar.get_height() + 0.02,
-                    f'{bar.get_height():.3f}', ha='center', va='bottom', fontsize=8)
+    ax3.text(bar.get_x() + bar.get_width() / 2,
+             bar.get_height() + 0.02,
+             f'{bar.get_height():.3f}',
+             ha='center', va='bottom', fontsize=10)
 for bar in bars2:
-    axes[1][0].text(bar.get_x() + bar.get_width()/2,
-                    bar.get_height() + 0.02,
-                    f'{bar.get_height():.3f}', ha='center', va='bottom', fontsize=8)
- 
-# ── Feature Importance RF ────────────────────────────────────────
-feat_imp = pd.Series(best_rf.feature_importances_,
-                     index=X.columns).sort_values(ascending=True).tail(10)
-feat_imp.plot(kind='barh', ax=axes[1][1], color='seagreen', alpha=0.8)
-axes[1][1].set(title='Feature Importance — Random Forest',
-               xlabel='Importance Score')
- 
-# ── Tabel Ringkasan ──────────────────────────────────────────────
-axes[1][2].axis('off')
-table_data = [[m,
-               f"{metrics_svm[m]:.4f}",
-               f"{metrics_rf[m]:.4f}",
-               '✓ SVM' if metrics_svm[m] > metrics_rf[m] else '✓ RF']
-              for m in metric_names]
-table_data.append(['CV AUC',
-                   f"{metrics_svm['CV AUC']:.4f}",
-                   f"{metrics_rf['CV AUC']:.4f}",
-                   '✓ SVM' if metrics_svm['CV AUC'] > metrics_rf['CV AUC'] else '✓ RF'])
- 
-tbl = axes[1][2].table(
-    cellText=table_data,
-    colLabels=['Metrik', 'SVM', 'Random Forest', 'Unggul'],
-    cellLoc='center', loc='center'
-)
-tbl.auto_set_font_size(False)
-tbl.set_fontsize(10)
-tbl.scale(1.2, 2)
-axes[1][2].set_title('Ringkasan Perbandingan', fontweight='bold', pad=20)
+    ax3.text(bar.get_x() + bar.get_width() / 2,
+             bar.get_height() + 0.02,
+             f'{bar.get_height():.3f}',
+             ha='center', va='bottom', fontsize=10)
  
 plt.tight_layout()
-plt.savefig('svm_vs_rf.png', dpi=150, bbox_inches='tight')
+plt.savefig('3_metric_comparison.png', dpi=150, bbox_inches='tight')
 plt.show()
-print("\nSelesai! File disimpan: svm_vs_rf.png")
+ 
+print("\nSelesai! File disimpan:")
+print("  → 1_confusion_matrix.png")
+print("  → 2_roc_curve.png")
+print("  → 3_metric_comparison.png")
