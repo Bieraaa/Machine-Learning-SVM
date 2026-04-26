@@ -9,7 +9,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import (accuracy_score, precision_score, recall_score,f1_score, roc_auc_score, roc_curve,confusion_matrix, classification_report)
 
 """ ================= Load Data =================  """
-df = pd.read_csv("D:\Tubes Machine Learning\heart.csv")
+df = pd.read_csv("D:\itk\semester 4\ml\project tubes\Machine-Learning-SVM\heart.csv")
 print(f"Shape awal: {df.shape}\n")
 print(df.head())
 
