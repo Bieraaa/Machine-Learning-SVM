@@ -50,18 +50,29 @@ X_test_sc  = scaler.transform(X_test)
 
 print(f"Train: {X_train_sc.shape} | Test: {X_test_sc.shape}")
 
+""" ================= model =================  """
+# --- Baseline SVM ---
+svm_base = SVC(kernel='rbf', C=1.0, gamma='scale', probability=True, random_state=42)
+svm_base.fit(X_train_sc, y_train)
+print("\nBaseline SVM selesai dilatih.")
+
+# --- Baseline Random Forest ---
+rf_base = RandomForestClassifier(n_estimators=100, random_state=42)
+rf_base.fit(X_train, y_train)
+print("Baseline Random Forest selesai dilatih.")
+
 """ ================= Evaluasi =================  """
 
 def evaluate_baseline(model, X_te, y_te, label, params):
     y_pred = model.predict(X_te)
     y_prob = model.predict_proba(X_te)[:, 1]
-
+ 
     accuracy  = accuracy_score(y_te, y_pred)
     precision = precision_score(y_te, y_pred)
     recall    = recall_score(y_te, y_pred)
     f1        = f1_score(y_te, y_pred)
     auc       = roc_auc_score(y_te, y_prob)
-
+ 
     print("\n" + "=" * 45)
     print(f"  BASELINE {label}")
     print("=" * 45)
@@ -76,25 +87,17 @@ def evaluate_baseline(model, X_te, y_te, label, params):
     print("=" * 45)
     print(f"\nClassification Report — {label}:")
     print(classification_report(y_te, y_pred, target_names=['Normal', 'Heart Disease']))
-
+ 
     return y_pred, y_prob, accuracy, precision, recall, f1, auc
 
-
-""" ================= model =================  """
-# --- SVM ---
-svm_base = SVC(kernel='rbf', C=1.0, gamma='scale',probability=True, random_state=42)
-svm_base.fit(X_train_sc, y_train)
- 
+# Evaluasi SVM
 y_pred_svm, y_prob_svm, acc_svm, pre_svm, rec_svm, f1_svm, auc_svm = evaluate_baseline(
     svm_base, X_test_sc, y_test,
     label="SVM",
     params={'Kernel': 'rbf (default)', 'C': '1.0 (default)', 'Gamma': 'scale (default)'}
 )
-
-# --- Random Forest ---
-rf_base = RandomForestClassifier(n_estimators=100, random_state=42)
-rf_base.fit(X_train, y_train)
-
+ 
+# Evaluasi Random Forest
 y_pred_rf, y_prob_rf, acc_rf, pre_rf, rec_rf, f1_rf, auc_rf = evaluate_baseline(
     rf_base, X_test, y_test,
     label="Random Forest",
@@ -102,7 +105,6 @@ y_pred_rf, y_prob_rf, acc_rf, pre_rf, rec_rf, f1_rf, auc_rf = evaluate_baseline(
 )
 
 """ ================= Visualisasi =================  """
-
 # ── Visualisasi 1: Confusion Matrix berdampingan ─────────────────
 fig1, axes1 = plt.subplots(1, 2, figsize=(12, 5))
 fig1.suptitle('Confusion Matrix — Baseline SVM vs Random Forest', fontsize=13, fontweight='bold')
