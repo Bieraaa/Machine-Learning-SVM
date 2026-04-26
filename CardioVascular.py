@@ -35,7 +35,7 @@ print(f"Shape setelah cleansing: {df.shape}")
 # Encoding kategorikal —  One-Hot Encoding
 df = pd.get_dummies(df,columns=['Sex','ChestPainType','RestingECG','ExerciseAngina','ST_Slope'],drop_first=True)
 
-# Split fitur & target
+# trainsplit
 X = df.drop(columns='HeartDisease')
 y = df['HeartDisease']
 
