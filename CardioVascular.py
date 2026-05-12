@@ -65,32 +65,35 @@ print("Baseline Random Forest selesai dilatih.")
 # SVM: C (keketatan batas), gamma (pengaruh data point), kernel (bentuk pemisah)
 
 parameter_SVM = {
-    'C' : [0.01, 0.1, 1, 10, 100, 500, 1000],
-    'gamma' : ['scale', 'auto', 0.01, 0.1],
+    'C' : [0.1, 1, 5, 10, 50, 100],
+    'gamma' : ['scale', 'auto', 0.001, 0.01, 0.1],
     'kernel' : ['rbf', 'linear'],
+    'class_weight': ['balanced', None]
 }
 
 # RF: n_estimators (jumlah pohon), max_depth (kedalaman), dll
 
 parameter_RF = {
-    'n_estimators' : [100, 200, 300],
-    'max_depth' : [None, 5, 10, 20],
+    'n_estimators' : [100, 200, 300, 500],
+    'max_depth' : [None, 5, 10, 15, 20],
     'min_samples_split' : [2, 5, 10],
-    'max_features' : ['sqrt', 'log2']
+    'min_samples_leaf' : [1, 2, 4],
+    'max_features' : ['sqrt', 'log2'],
+    'class_weight'     : ['balanced', None]
 }
 
 #---------------- Randomized Search -----------------------
 
 search_svm = RandomizedSearchCV(
     SVC(probability=True, random_state=42),
-    parameter_SVM, n_iter=50, cv= 5,
-    scoring='roc_auc', random_state=42, n_jobs=-1, refit=True
+    parameter_SVM, n_iter=60, cv= 10,
+    scoring='recall', random_state=42, n_jobs=-1, refit=True
 )
 
 search_rf = RandomizedSearchCV(
     RandomForestClassifier(random_state=42),
-    parameter_RF, n_iter=50, cv=5,
-    scoring= 'roc_auc', random_state=42, n_jobs= -1, refit=True
+    parameter_RF, n_iter=70, cv=10,
+    scoring= 'recall', random_state=42, n_jobs= -1, refit=True
 )
 
 #------------------- Tuning ------------------------------
