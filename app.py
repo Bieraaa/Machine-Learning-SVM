@@ -304,7 +304,11 @@ col1, col2 = st.columns(2)
 
 with col1:
     st.subheader("🔵 Tuned SVM")
-    st.write(f"**Parameter Terbaik:** `{rs_svm.best_params_}`")
+    
+    # Format parameter agar lebih rapi (hilangkan 'classifier__' dan kurung kurawal)
+    formatted_svm_params = ", ".join([f"**{k.replace('classifier__', '')}**: {v}" for k, v in rs_svm.best_params_.items()])
+    st.write(f"Parameter Terbaik: {formatted_svm_params}")
+    
     st.metric("Accuracy",  f"{acc_svm:.4f}")
     st.metric("Precision", f"{pre_svm:.4f}")
     st.metric("Recall",    f"{rec_svm:.4f}")
@@ -313,7 +317,10 @@ with col1:
 
 with col2:
     st.subheader("🟢 Tuned Random Forest")
-    st.write(f"**Parameter Terbaik:** `{rs_rf.best_params_}`")
+    
+    formatted_rf_params = ", ".join([f"**{k.replace('classifier__', '')}**: {v}" for k, v in rs_rf.best_params_.items()])
+    st.write(f"Parameter Terbaik: {formatted_rf_params}")
+    
     st.metric("Accuracy",  f"{acc_rf:.4f}")
     st.metric("Precision", f"{pre_rf:.4f}")
     st.metric("Recall",    f"{rec_rf:.4f}")
@@ -385,6 +392,190 @@ def build_input_df():
     return pd.DataFrame(data, index=[0])
 
 
+# ============================================================
+# 10. Fungsi Nasihat Kesehatan Berdasarkan Data Pasien
+# ============================================================
+
+def generate_health_advice(age, sex, chest_pain, resting_bp, cholesterol,
+                           fasting_bs, resting_ecg, max_hr,
+                           exercise_angina, oldpeak, st_slope):
+    """
+    Menganalisis data klinis pasien dan menghasilkan daftar nasihat
+    kesehatan yang relevan berdasarkan nilai yang di luar batas normal.
+    """
+    advice_list = []
+
+    # --- Usia ---
+    if age >= 60:
+        advice_list.append({
+            "icon": "🧓",
+            "judul": "Faktor Usia",
+            "isi": (
+                "Risiko penyakit jantung meningkat seiring bertambahnya usia. "
+                "Lakukan pemeriksaan jantung rutin setidaknya sekali setahun bersama dokter spesialis "
+                "jantung (kardiolog) dan ikuti program gaya hidup sehat yang direkomendasikan dokter."
+            )
+        })
+
+    # --- Tekanan Darah (RestingBP) ---
+    if resting_bp >= 130:
+        advice_list.append({
+            "icon": "🩺",
+            "judul": "Tekanan Darah Tinggi (Hipertensi)",
+            "isi": (
+                f"Tekanan darah istirahat Anda **{resting_bp} mmHg** berada di atas batas normal (< 120 mmHg). "
+                "Kurangi konsumsi garam dan makanan olahan, perbanyak konsumsi buah dan sayur, "
+                "olahraga ringan seperti jalan kaki 30 menit per hari, kelola stres dengan baik, "
+                "dan konsultasikan ke dokter untuk kemungkinan pemberian obat antihipertensi."
+            )
+        })
+
+    # --- Kolesterol ---
+    if cholesterol >= 200:
+        advice_list.append({
+            "icon": "🧪",
+            "judul": "Kadar Kolesterol Tinggi",
+            "isi": (
+                f"Kadar kolesterol Anda **{cholesterol} mg/dL** di atas batas ideal (< 200 mg/dL). "
+                "Hindari makanan berlemak jenuh dan trans (gorengan, daging berlemak), "
+                "perbanyak konsumsi ikan, kacang-kacangan, oatmeal, dan buah-buahan. "
+                "Pertimbangkan terapi obat statin jika direkomendasikan dokter."
+            )
+        })
+
+    # --- Detak Jantung Maksimal (MaxHR) ---
+    max_hr_normal = 220 - age
+    if max_hr > max_hr_normal * 0.95:
+        advice_list.append({
+            "icon": "💓",
+            "judul": "Detak Jantung Saat Olahraga Sangat Tinggi",
+            "isi": (
+                f"Detak jantung maksimal Anda **{max_hr} bpm** mendekati atau melebihi batas aman "
+                f"(~{int(max_hr_normal * 0.85)}–{max_hr_normal} bpm untuk usia {age} tahun). "
+                "Hindari olahraga berlebihan tanpa pengawasan, gunakan monitor detak jantung saat berolahraga, "
+                "dan mulai dengan latihan intensitas rendah-sedang seperti jalan santai atau bersepeda santai."
+            )
+        })
+    elif max_hr < 100:
+        advice_list.append({
+            "icon": "💔",
+            "judul": "Detak Jantung Maksimal Rendah (Bradikardia)",
+            "isi": (
+                f"Detak jantung maksimal Anda **{max_hr} bpm** tergolong rendah saat aktivitas. "
+                "Ini bisa mengindikasikan kondisi bradikardia atau keterbatasan fungsi jantung. "
+                "Segera konsultasikan ke dokter untuk evaluasi lebih lanjut seperti EKG atau tes stres jantung."
+            )
+        })
+
+    # --- Gula Darah Puasa (FastingBS) ---
+    if fasting_bs == 1:
+        advice_list.append({
+            "icon": "🍬",
+            "judul": "Gula Darah Puasa Tinggi (> 120 mg/dL)",
+            "isi": (
+                "Kadar gula darah puasa Anda **di atas 120 mg/dL**, yang merupakan indikator risiko diabetes. "
+                "Kurangi konsumsi makanan dan minuman manis, nasi putih, dan karbohidrat olahan. "
+                "Tingkatkan aktivitas fisik, pantau gula darah secara rutin, dan konsultasikan ke dokter "
+                "untuk tes HbA1c guna mengetahui kondisi diabetes lebih lanjut."
+            )
+        })
+
+    # --- Nyeri Dada saat Olahraga (ExerciseAngina) ---
+    if exercise_angina == "Y":
+        advice_list.append({
+            "icon": "⚠️",
+            "judul": "Nyeri Dada saat Beraktivitas (Angina)",
+            "isi": (
+                "Anda mengalami **nyeri dada saat berolahraga**, yang merupakan tanda serius penyempitan "
+                "pembuluh darah koroner. **Segera hentikan** aktivitas fisik berat dan konsultasikan ke "
+                "dokter jantung sesegera mungkin. Jangan tunda pemeriksaan karena ini berisiko tinggi "
+                "menyebabkan serangan jantung."
+            )
+        })
+
+    # --- Depresi ST (Oldpeak) ---
+    if oldpeak > 2.0:
+        advice_list.append({
+            "icon": "📉",
+            "judul": "Depresi Segmen ST Tinggi",
+            "isi": (
+                f"Nilai depresi ST (Oldpeak) Anda **{oldpeak}**, jauh di atas ambang normal (≤ 1.0). "
+                "Ini menandakan adanya iskemia (kekurangan aliran darah ke otot jantung) yang signifikan. "
+                "Diperlukan pemeriksaan lanjutan seperti kateterisasi jantung atau angiografi koroner. "
+                "Konsultasikan segera ke dokter spesialis jantung."
+            )
+        })
+    elif oldpeak > 1.0:
+        advice_list.append({
+            "icon": "📊",
+            "judul": "Depresi Segmen ST Sedang",
+            "isi": (
+                f"Nilai depresi ST (Oldpeak) Anda **{oldpeak}** sedikit di atas normal. "
+                "Lakukan pemantauan berkala dengan EKG dan konsultasikan hasilnya ke dokter."
+            )
+        })
+
+    # --- Kemiringan ST (ST_Slope) ---
+    if st_slope == "Down":
+        advice_list.append({
+            "icon": "📐",
+            "judul": "Kemiringan ST Menurun (Downsloping)",
+            "isi": (
+                "Pola **ST slope menurun** pada EKG Anda adalah indikator kuat adanya masalah pada "
+                "aliran darah koroner. Ini memerlukan evaluasi kardiologi segera, termasuk "
+                "kemungkinan dilakukannya tes treadmill atau stress echo cardiography."
+            )
+        })
+    elif st_slope == "Flat":
+        advice_list.append({
+            "icon": "📏",
+            "judul": "Kemiringan ST Datar (Flat)",
+            "isi": (
+                "Pola **ST slope datar** menunjukkan respons jantung yang kurang optimal saat beraktivitas. "
+                "Lakukan monitoring EKG secara berkala dan diskusikan dengan dokter jantung Anda."
+            )
+        })
+
+    # --- Tipe Nyeri Dada ---
+    if chest_pain == "ASY":
+        advice_list.append({
+            "icon": "🫀",
+            "judul": "Nyeri Dada Asimptomatik (Tanpa Gejala Nyata)",
+            "isi": (
+                "Penyakit jantung tanpa gejala yang jelas (asimptomatik) justru sangat berbahaya karena "
+                "sering terlambat dideteksi. Lakukan **skrining jantung rutin** meski tidak ada keluhan, "
+                "termasuk pemeriksaan EKG, ekokardiografi, dan profil lipid darah setidaknya setahun sekali."
+            )
+        })
+
+    # --- Hasil EKG ---
+    if resting_ecg == "ST":
+        advice_list.append({
+            "icon": "🏥",
+            "judul": "Kelainan Segmen ST pada EKG",
+            "isi": (
+                "Hasil EKG Anda menunjukkan **kelainan segmen ST** yang perlu dievaluasi lebih lanjut. "
+                "Segera hubungi dokter untuk interpretasi hasil EKG dan pertimbangkan pemeriksaan lanjutan "
+                "seperti Holter monitoring atau ekokardiografi."
+            )
+        })
+
+    # Jika tidak ada faktor spesifik yang terdeteksi (nasihat umum)
+    if not advice_list:
+        advice_list.append({
+            "icon": "💊",
+            "judul": "Saran Umum Pola Hidup Sehat",
+            "isi": (
+                "Meskipun tidak ada faktor risiko tunggal yang sangat menonjol, model memprediksi risiko tinggi "
+                "berdasarkan kombinasi faktor. Disarankan untuk: berhenti merokok (jika perokok), "
+                "menjaga berat badan ideal, rutin berolahraga 150 menit per minggu, makan makanan bergizi "
+                "seimbang, dan melakukan pemeriksaan jantung menyeluruh bersama dokter."
+            )
+        })
+
+    return advice_list
+
+
 input_df = build_input_df()
 
 st.subheader("Data Pasien Saat Ini")
@@ -402,6 +593,31 @@ if st.button("🔍 Lakukan Prediksi", type="primary"):
     if prediction[0] == 1:
         st.error("⚠️ **BERISIKO TINGGI** mengidap Penyakit Kardiovaskular.")
         st.write(f"Tingkat Keyakinan Model: **{prediction_proba[0][1] * 100:.2f}%**")
+
+        # ── Nasihat Kesehatan Berdasarkan Data Pasien ────────────
+        advice_items = generate_health_advice(
+            age, sex, chest_pain, resting_bp, cholesterol,
+            fasting_bs, resting_ecg, max_hr,
+            exercise_angina, oldpeak, st_slope
+        )
+
+        st.markdown("---")
+        st.subheader("💡 Nasihat & Rekomendasi Kesehatan")
+        st.caption(
+            "Berikut adalah rekomendasi berdasarkan kondisi klinis yang terdeteksi dari data pasien. "
+            "**Konsultasikan selalu dengan dokter atau tenaga medis profesional.**"
+        )
+
+        for item in advice_items:
+            with st.expander(f"{item['icon']}  {item['judul']}", expanded=True):
+                st.markdown(item['isi'])
+
+        st.info(
+            "🏥 **Penting:** Hasil prediksi ini bersifat sebagai alat bantu skrining awal, "
+            "bukan diagnosis medis resmi. Segera kunjungi dokter spesialis jantung untuk "
+            "pemeriksaan dan penanganan yang tepat."
+        )
+
     else:
         st.success("✅ **NORMAL** (Risiko Rendah Penyakit Kardiovaskular).")
-        st.write(f"Tingkat Keyakinan Model: **{prediction_proba[0][0] * 100:.2f}%**")
+        st.write(f"Tingkat Keyakinan Model: **{prediction_proba[0][0] * 100:.2f}%**")
