@@ -2,6 +2,8 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
+import joblib
+import os
 from sklearn.svm import SVC
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split, RandomizedSearchCV
@@ -186,6 +188,41 @@ print(df_compare.to_string())
 best_label = df_compare.loc['ROC-AUC'].idxmax()
 print(f"\nModel terbaik berdasarkan ROC-AUC: {best_label}")
 
+""" ================= Simpan Model =================  """
+
+SAVE_DIR = "Save_model"
+os.makedirs(SAVE_DIR, exist_ok= True)
+
+# Tentukan objek mode; & data test yang sesuai berdasarkan best_label
+model_map = {
+    "Baseline SVM"  : (svm_base, X_test_sc),
+    "Tuned SVM"     : (search_svm, X_test_sc),
+    "Baseline RF"   : (rf_base, X_test),
+    "Tuned RF"      : (search_rf, X_test)
+}
+best_model, _ = model_map[best_label]
+
+#Simpan model terbaik
+joblib.dump(best_model, os.path.join(SAVE_DIR, "best_model.pkl"))
+print(f"\n✅ Model terbaik ({best_label}) disimpan → {SAVE_DIR}/best_model.pkl")
+
+# Simpan scaler (selalu dibutuhkan untuk SVM; disimpan sekaligus untuk RF jaga-jaga)
+joblib.dump(scaler, os.path.join(SAVE_DIR, "scaler.pkl"))
+print(f"✅ Scaler disimpan → {SAVE_DIR}/scaler.pkl")
+
+# Simpan nama fitur agar urutan kolom konsisten saat prediksi di Streamlit
+feature_names = list(X.columns)
+joblib.dump(feature_names, os.path.join(SAVE_DIR, "feature_names.pkl"))
+print(f"✅ Feature names disimpan → {SAVE_DIR}/feature_names.pkl")
+
+# Simpan label model terbaik (untuk referensi di Streamlit)
+joblib.dump(best_label, os.path.join(SAVE_DIR, "best_label.pkl"))
+print(f"✅ Best label disimpan → {SAVE_DIR}/best_label.pkl")
+
+# Verifikasi — load ulang dan cek
+_model_check = joblib.load(os.path.join(SAVE_DIR, "best_model.pkl"))
+print(f"\n🔍 Verifikasi load ulang: {type(_model_check).__name__} — OK")
+
 """ ================= Visualisasi =================  """
 # ── Visualisasi 1: Confusion Matrix Baseline ──────────────────
 fig1, axes1 = plt.subplots(1, 2, figsize=(12, 5))
@@ -298,8 +335,16 @@ plt.tight_layout()
 plt.savefig('tuned_confusion_matrix.png', dpi=150, bbox_inches='tight')
 plt.show()
 
-print("\nSelesai! File disimpan:")
-print("  → baseline_confusion_matrix.png")
-print("  → comparison_metrics.png")
-print("  → baseline_roc_curve.png")
-print("  → tuned_confusion_matrix.png")
+""" =========================================================== """
+
+print("\n Selesai! File yang disimpan:")
+print("   [Model]")
+print("   → saved_model/best_model.pkl")
+print("   → saved_model/scaler.pkl")
+print("   → saved_model/feature_names.pkl")
+print("   → saved_model/best_label.pkl")
+print("   [Visualisasi]")
+print("   → baseline_confusion_matrix.png")
+print("   → tuned_confusion_matrix.png")
+print("   → roc_curve_all.png")
+print("   → comparison_metrics.png")
