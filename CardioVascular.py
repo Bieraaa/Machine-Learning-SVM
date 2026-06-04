@@ -13,19 +13,16 @@ from sklearn.metrics import (accuracy_score, precision_score, recall_score,f1_sc
 """ ================= Load Data =================  """
 df = pd.read_csv("heart.csv")
 print(f"Shape awal: {df.shape}\n")
-print(df.head())
+print(df.head()) 
 
-""" ================= Cleansing Data =================  """
-
-# Hapus duplikat
+# ================= 2. Cleansing Data =================
+print("\nMelakukan Data Cleansing...")
 df.drop_duplicates(inplace=True)
 
-# Nilai 0 tidak valid → ganti median
 for col in ['Cholesterol', 'RestingBP']:
     median = df.loc[df[col] != 0, col].median()
     df[col] = df[col].replace(0, median)
 
-# Winsorize outlier (1%–99%)
 num_cols = ['Age', 'RestingBP', 'Cholesterol', 'MaxHR', 'Oldpeak']
 for col in num_cols:
     df[col] = df[col].clip(df[col].quantile(0.01), df[col].quantile(0.99))
@@ -51,7 +48,11 @@ scaler     = StandardScaler()
 X_train_sc = scaler.fit_transform(X_train)
 X_test_sc  = scaler.transform(X_test)
 
-print(f"Train: {X_train_sc.shape} | Test: {X_test_sc.shape}")
+preprocessor = ColumnTransformer(
+    transformers=[
+        ('num', StandardScaler(), numeric_features),
+        ('cat', OneHotEncoder(drop='first', handle_unknown='ignore'), categorical_features)
+    ])
 
 """ ================= Baseline model =================  """
 # --- Baseline SVM ---
@@ -127,7 +128,7 @@ def evaluate_model(model, X_te, y_te, label, params):
     auc       = roc_auc_score(y_te, y_prob)
 
     print("\n" + "=" * 45)
-    print(f"  BASELINE {label}")
+    print(f"  EVALUASI {label}")
     print("=" * 45)
     for k, v in params.items():
         print(f"  {k:<12}: {v}")
