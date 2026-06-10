@@ -167,6 +167,43 @@ st.markdown("""
     /* hide streamlit default elements */
     #MainMenu, footer, header { visibility: hidden; }
     .block-container { padding-top: 2rem !important; }
+
+    /* ── Sidebar toggle button — multi-selector untuk semua versi Streamlit ── */
+
+    /* Tombol panah ketika sidebar TERTUTUP (collapsed) */
+    [data-testid="collapsedControl"] {
+        background-color: #6b1a1a !important;
+        border-radius: 0 8px 8px 0 !important;
+        padding: 6px 4px !important;
+        box-shadow: 3px 0 10px rgba(107,26,26,0.5) !important;
+        opacity: 1 !important;
+        min-width: 28px !important;
+    }
+    [data-testid="collapsedControl"] svg {
+        fill: #ffffff !important;
+        color: #ffffff !important;
+    }
+    [data-testid="collapsedControl"] button {
+        background-color: transparent !important;
+        color: #ffffff !important;
+    }
+
+    /* Tombol panah ketika sidebar TERBUKA (expand/collapse di dalam sidebar) */
+    section[data-testid="stSidebar"] button {
+        background-color: #6b1a1a !important;
+        border-radius: 50% !important;
+        color: #ffffff !important;
+        opacity: 1 !important;
+        border: none !important;
+    }
+    section[data-testid="stSidebar"] button svg {
+        fill: #ffffff !important;
+        stroke: #ffffff !important;
+    }
+    section[data-testid="stSidebar"] button:hover {
+        background-color: #8b2020 !important;
+        transform: scale(1.1) !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -195,7 +232,7 @@ except Exception as e:
     load_error   = str(e)
 
 # ===============================================================
-# SIDEBAR
+# SIDEBAR — hanya info & branding
 # ===============================================================
 with st.sidebar:
     st.markdown("""
@@ -208,12 +245,6 @@ with st.sidebar:
     </div>
     """, unsafe_allow_html=True)
 
-    halaman = st.radio(
-        "Navigasi",
-        ["🩺  Prediksi", "📊  Dashboard Model", "ℹ️  Tentang"],
-        label_visibility="collapsed"
-    )
-
     st.markdown("<hr>", unsafe_allow_html=True)
 
     if model_loaded:
@@ -222,15 +253,24 @@ with st.sidebar:
         <div style="font-size:14px; font-weight:600; color:#1a1a1a;">
             {best_label} <span class="badge-maroon">Optimized</span>
         </div>
+        <div style="font-size:12px; color:#aaa; margin-top:10px;">AUC: 0.9454 &nbsp;|&nbsp; Acc: 86.96%</div>
         """, unsafe_allow_html=True)
     else:
         st.error("Model tidak ditemukan. Jalankan CardioVascular_Optimized.py dulu.")
+
+# ===============================================================
+# NAVIGASI TABS — selalu tampil di atas halaman
+# ===============================================================
+tab_prediksi, tab_dashboard, tab_tentang = st.tabs([
+    "🩺  Prediksi", "📊  Dashboard Model", "ℹ️  Tentang"
+])
+
 
 
 # ===============================================================
 # HALAMAN 1 — PREDIKSI
 # ===============================================================
-if halaman == "🩺  Prediksi":
+with tab_prediksi:
 
     st.markdown("""
     <div class="page-header">
@@ -241,111 +281,122 @@ if halaman == "🩺  Prediksi":
 
     if not model_loaded:
         st.error(f"Model gagal dimuat: {load_error}")
-        st.stop()
+    else:
+        # ── FORM INPUT ──────────────────────────────────────────────
+        st.markdown('<div class="card"><div class="card-title">📋 Data Pasien</div>', unsafe_allow_html=True)
 
-    # ── FORM INPUT ──────────────────────────────────────────────
-    st.markdown('<div class="card"><div class="card-title">📋 Data Pasien</div>', unsafe_allow_html=True)
+        col1, col2, col3 = st.columns(3)
 
-    col1, col2, col3 = st.columns(3)
+        with col1:
+            age        = st.number_input("Usia (tahun)", min_value=1, max_value=120, value=52)
+            sex        = st.selectbox("Jenis kelamin", ["Laki-laki (M)", "Perempuan (F)"])
+            resting_bp = st.number_input("Tekanan darah istirahat (mmHg)", min_value=0, max_value=300, value=140)
+            cholesterol = st.number_input("Kolesterol (mg/dL)", min_value=0, max_value=700, value=268)
 
-    with col1:
-        age        = st.number_input("Usia (tahun)", min_value=1, max_value=120, value=52)
-        sex        = st.selectbox("Jenis kelamin", ["Laki-laki (M)", "Perempuan (F)"])
-        resting_bp = st.number_input("Tekanan darah istirahat (mmHg)", min_value=0, max_value=300, value=140)
-        cholesterol = st.number_input("Kolesterol (mg/dL)", min_value=0, max_value=700, value=268)
+        with col2:
+            chest_pain = st.selectbox("Jenis nyeri dada", ["ASY", "ATA", "NAP", "TA"])
+            max_hr     = st.number_input("Detak jantung maksimum", min_value=50, max_value=250, value=125)
+            fasting_bs = st.selectbox("Gula darah puasa > 120 mg/dL", ["Tidak (0)", "Ya (1)"])
+            resting_ecg = st.selectbox("Resting ECG", ["Normal", "ST", "LVH"])
 
-    with col2:
-        chest_pain = st.selectbox("Jenis nyeri dada", ["ASY", "ATA", "NAP", "TA"])
-        max_hr     = st.number_input("Detak jantung maksimum", min_value=50, max_value=250, value=125)
-        fasting_bs = st.selectbox("Gula darah puasa > 120 mg/dL", ["Tidak (0)", "Ya (1)"])
-        resting_ecg = st.selectbox("Resting ECG", ["Normal", "ST", "LVH"])
+        with col3:
+            exercise_angina = st.selectbox("Exercise Angina", ["Tidak (N)", "Ya (Y)"])
+            oldpeak         = st.number_input("Oldpeak (ST depression)", min_value=-5.0, max_value=10.0, value=1.5, step=0.1)
+            st_slope        = st.selectbox("ST Slope", ["Flat", "Up", "Down"])
 
-    with col3:
-        exercise_angina = st.selectbox("Exercise Angina", ["Tidak (N)", "Ya (Y)"])
-        oldpeak         = st.number_input("Oldpeak (ST depression)", min_value=-5.0, max_value=10.0, value=1.5, step=0.1)
-        st_slope        = st.selectbox("ST Slope", ["Flat", "Up", "Down"])
+        st.markdown('</div>', unsafe_allow_html=True)
 
-    st.markdown('</div>', unsafe_allow_html=True)
+        # ── PILIHAN ALGORITMA ────────────────────────────────────────
+        st.markdown('<div class="card"><div class="card-title">🤖 Pilih Algoritma</div>', unsafe_allow_html=True)
+        algo_choice = st.radio(
+            "Algoritma",
+            ["Stacking Ensemble (SVM + RF + LR)", "SVM (Support Vector Machine)", "Random Forest"],
+            horizontal=True,
+            label_visibility="collapsed"
+        )
+        st.markdown('</div>', unsafe_allow_html=True)
 
-    # ── TOMBOL PREDIKSI ─────────────────────────────────────────
-    predict_clicked = st.button("🔍 Prediksi Sekarang")
+        # ── TOMBOL PREDIKSI ─────────────────────────────────────────
+        predict_clicked = st.button("🔍 Prediksi Sekarang")
 
-    if predict_clicked:
-        # --- Encode input ke format RAW (sebelum One-Hot) ---
-        # Pipeline di model Optimized sudah include preprocessor di dalamnya
-        sex_val    = "M" if "M" in sex else "F"
-        angina_val = "Y" if "Y" in exercise_angina else "N"
-        bs_val     = 1 if "1" in fasting_bs else 0
+        if predict_clicked:
+            sex_val    = "M" if "M" in sex else "F"
+            angina_val = "Y" if "Y" in exercise_angina else "N"
+            bs_val     = 1 if "1" in fasting_bs else 0
 
-        # Buat DataFrame raw (sama persis dengan kolom asli heart.csv)
-        input_dict = {
-            "Age"            : age,
-            "Sex"            : sex_val,
-            "ChestPainType"  : chest_pain,
-            "RestingBP"      : resting_bp,
-            "Cholesterol"    : cholesterol,
-            "FastingBS"      : bs_val,
-            "RestingECG"     : resting_ecg,
-            "MaxHR"          : max_hr,
-            "ExerciseAngina" : angina_val,
-            "Oldpeak"        : oldpeak,
-            "ST_Slope"       : st_slope,
-        }
-        input_df = pd.DataFrame([input_dict])
+            input_dict = {
+                "Age"            : age,
+                "Sex"            : sex_val,
+                "ChestPainType"  : chest_pain,
+                "RestingBP"      : resting_bp,
+                "Cholesterol"    : cholesterol,
+                "FastingBS"      : bs_val,
+                "RestingECG"     : resting_ecg,
+                "MaxHR"          : max_hr,
+                "ExerciseAngina" : angina_val,
+                "Oldpeak"        : oldpeak,
+                "ST_Slope"       : st_slope,
+            }
+            input_df = pd.DataFrame([input_dict])
 
-        # --- Feature Engineering (sama persis seperti di CardioVascular_Optimized.py) ---
-        input_df['Age_MaxHR_ratio']   = input_df['Age'] / (input_df['MaxHR'] + 1)
-        input_df['Chol_Age_product']  = input_df['Cholesterol'] * input_df['Age'] / 1000
-        input_df['BP_age_ratio']      = input_df['RestingBP'] / input_df['Age']
-        input_df['MaxHR_Age_diff']    = (220 - input_df['Age']) - input_df['MaxHR']
-        input_df['Oldpeak_sq']        = input_df['Oldpeak'] ** 2
-        input_df['is_elderly']        = (input_df['Age'] >= 60).astype(int)
-        input_df['high_chol']         = (input_df['Cholesterol'] >= 200).astype(int)
-        input_df['exercise_capacity'] = input_df['MaxHR'] / (input_df['Age'] + 1)
+            # Feature Engineering
+            input_df['Age_MaxHR_ratio']   = input_df['Age'] / (input_df['MaxHR'] + 1)
+            input_df['Chol_Age_product']  = input_df['Cholesterol'] * input_df['Age'] / 1000
+            input_df['BP_age_ratio']      = input_df['RestingBP'] / input_df['Age']
+            input_df['MaxHR_Age_diff']    = (220 - input_df['Age']) - input_df['MaxHR']
+            input_df['Oldpeak_sq']        = input_df['Oldpeak'] ** 2
+            input_df['is_elderly']        = (input_df['Age'] >= 60).astype(int)
+            input_df['high_chol']         = (input_df['Cholesterol'] >= 200).astype(int)
+            input_df['exercise_capacity'] = input_df['MaxHR'] / (input_df['Age'] + 1)
 
-        # --- Prediksi dengan Stacking Ensemble (Pipeline sudah include preprocessor) ---
-        prob_positive_raw = stacking_model.predict_proba(input_df)[0][1]
-        prob_positive     = prob_positive_raw * 100
-        pred              = int(prob_positive_raw >= 0.5)
+            # Pilih model
+            if "SVM" in algo_choice and "Stacking" not in algo_choice:
+                selected_model     = svm_model
+                selected_label     = "Optimized SVM"
+                selected_threshold = optimal_thresholds.get('svm_threshold', 0.5)
+            elif "Random Forest" in algo_choice:
+                selected_model     = rf_model
+                selected_label     = "Optimized Random Forest"
+                selected_threshold = optimal_thresholds.get('rf_threshold', 0.5)
+            else:
+                selected_model     = stacking_model
+                selected_label     = "Stacking Ensemble"
+                selected_threshold = 0.5
 
-        # ── TAMPILKAN HASIL ─────────────────────────────────────
-        if pred == 1:
-            st.markdown(f"""
-            <div class="result-danger">
-                <div style="font-size:13px; color:#b94040; font-weight:600; margin-bottom:4px;">HASIL PREDIKSI</div>
-                <div class="result-title-danger">⚠️ Risiko Penyakit Jantung Terdeteksi</div>
-                <div class="result-sub-danger">Model: {best_label} &nbsp;·&nbsp; Disarankan konsultasi dengan dokter spesialis jantung</div>
-                <div class="prob-wrap">
-                    <div class="prob-label"><span>Probabilitas risiko</span><span>{prob_positive:.1f}%</span></div>
-                    <div class="prob-bg"><div class="prob-fill-danger" style="width:{prob_positive:.1f}%;"></div></div>
+            prob_positive_raw = selected_model.predict_proba(input_df)[0][1]
+            prob_positive     = prob_positive_raw * 100
+            pred              = int(prob_positive_raw >= selected_threshold)
+
+            if pred == 1:
+                st.markdown(f"""
+                <div class="result-danger">
+                    <div style="font-size:13px; color:#b94040; font-weight:600; margin-bottom:4px;">HASIL PREDIKSI</div>
+                    <div class="result-title-danger">⚠️ Risiko Penyakit Jantung Terdeteksi</div>
+                    <div class="result-sub-danger">Model: {selected_label} &nbsp;·&nbsp; Threshold: {selected_threshold:.2f}</div>
+                    <div class="prob-wrap">
+                        <div class="prob-label"><span>Probabilitas risiko</span><span>{prob_positive:.1f}%</span></div>
+                        <div class="prob-bg"><div class="prob-fill-danger" style="width:{prob_positive:.1f}%;"></div></div>
+                    </div>
                 </div>
-            </div>
-            """, unsafe_allow_html=True)
-        else:
-            st.markdown(f"""
-            <div class="result-safe">
-                <div style="font-size:13px; color:#2e7d45; font-weight:600; margin-bottom:4px;">HASIL PREDIKSI</div>
-                <div class="result-title-safe">✅ Tidak Terdeteksi Risiko Penyakit Jantung</div>
-                <div class="result-sub-safe">Model: {best_label} &nbsp;·&nbsp; Tetap jaga pola hidup sehat</div>
-                <div class="prob-wrap">
-                    <div class="prob-label"><span>Probabilitas normal</span><span>{100 - prob_positive:.1f}%</span></div>
-                    <div class="prob-bg"><div class="prob-fill-safe" style="width:{100 - prob_positive:.1f}%;"></div></div>
+                """, unsafe_allow_html=True)
+            else:
+                st.markdown(f"""
+                <div class="result-safe">
+                    <div style="font-size:13px; color:#2e7d45; font-weight:600; margin-bottom:4px;">HASIL PREDIKSI</div>
+                    <div class="result-title-safe">✅ Tidak Terdeteksi Risiko Penyakit Jantung</div>
+                    <div class="result-sub-safe">Model: {selected_label} &nbsp;·&nbsp; Threshold: {selected_threshold:.2f}</div>
+                    <div class="prob-wrap">
+                        <div class="prob-label"><span>Probabilitas normal</span><span>{100 - prob_positive:.1f}%</span></div>
+                        <div class="prob-bg"><div class="prob-fill-safe" style="width:{100 - prob_positive:.1f}%;"></div></div>
+                    </div>
                 </div>
-            </div>
-            """, unsafe_allow_html=True)
-
-        st.markdown("""
-        <div class="disclaimer">
-            ⚠️ <strong>Disclaimer:</strong> Hasil prediksi ini bersifat indikatif dan tidak menggantikan
-            diagnosis medis profesional. Harap konsultasikan hasil ini dengan tenaga kesehatan yang berwenang.
-        </div>
-        """, unsafe_allow_html=True)
+                """, unsafe_allow_html=True)
 
 
 # ===============================================================
 # HALAMAN 2 — DASHBOARD MODEL
 # ===============================================================
-elif halaman == "📊  Dashboard Model":
+with tab_dashboard:
 
     st.markdown("""
     <div class="page-header">
@@ -423,7 +474,7 @@ elif halaman == "📊  Dashboard Model":
 # ===============================================================
 # HALAMAN 3 — TENTANG
 # ===============================================================
-elif halaman == "ℹ️  Tentang":
+with tab_tentang:
 
     st.markdown("""
     <div class="page-header">
