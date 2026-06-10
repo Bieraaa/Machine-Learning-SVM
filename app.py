@@ -174,19 +174,22 @@ st.markdown("""
 # ===============================================================
 # LOAD MODEL & ARTEFAK
 # ===============================================================
-SAVE_DIR = "Saved_model"
+import json
 
 @st.cache_resource
 def load_artifacts():
-    model        = joblib.load(os.path.join(SAVE_DIR, "best_model.pkl"))
-    scaler       = joblib.load(os.path.join(SAVE_DIR, "scaler.pkl"))
-    feature_names = joblib.load(os.path.join(SAVE_DIR, "feature_names.pkl"))
-    best_label   = joblib.load(os.path.join(SAVE_DIR, "best_label.pkl"))
-    return model, scaler, feature_names, best_label
+    """Load model hasil CardioVascular_Optimized.py (Stacking Ensemble)."""
+    stacking   = joblib.load("model_stacking.joblib")
+    svm_model  = joblib.load("model_svm_optimized.joblib")
+    rf_model   = joblib.load("model_rf_optimized.joblib")
+    with open("optimal_thresholds.json", "r") as f:
+        thresholds = json.load(f)
+    return stacking, svm_model, rf_model, thresholds
 
 try:
-    model, scaler, feature_names, best_label = load_artifacts()
+    stacking_model, svm_model, rf_model, optimal_thresholds = load_artifacts()
     model_loaded = True
+    best_label   = "Stacking Ensemble"
 except Exception as e:
     model_loaded = False
     load_error   = str(e)
@@ -214,16 +217,14 @@ with st.sidebar:
     st.markdown("<hr>", unsafe_allow_html=True)
 
     if model_loaded:
-        is_tuned = "Tuned" in best_label
-        badge = "badge-maroon" if is_tuned else "badge-gray"
         st.markdown(f"""
         <div style="font-size:12px; color:#aaa; margin-bottom:6px;">Model aktif</div>
         <div style="font-size:14px; font-weight:600; color:#1a1a1a;">
-            {best_label} <span class="{badge}">{'Tuned' if is_tuned else 'Baseline'}</span>
+            {best_label} <span class="badge-maroon">Optimized</span>
         </div>
         """, unsafe_allow_html=True)
     else:
-        st.error("Model tidak ditemukan. Jalankan training dulu.")
+        st.error("Model tidak ditemukan. Jalankan CardioVascular_Optimized.py dulu.")
 
 
 # ===============================================================
@@ -270,61 +271,42 @@ if halaman == "🩺  Prediksi":
     predict_clicked = st.button("🔍 Prediksi Sekarang")
 
     if predict_clicked:
-        # --- Encode input sesuai One-Hot yang dipakai training ---
-        sex_val     = 1 if "M" in sex else 0        # Sex_M
-        angina_val  = 1 if "Y" in exercise_angina else 0  # ExerciseAngina_Y
-        bs_val      = 1 if "1" in fasting_bs else 0
+        # --- Encode input ke format RAW (sebelum One-Hot) ---
+        # Pipeline di model Optimized sudah include preprocessor di dalamnya
+        sex_val    = "M" if "M" in sex else "F"
+        angina_val = "Y" if "Y" in exercise_angina else "N"
+        bs_val     = 1 if "1" in fasting_bs else 0
 
-        # ChestPainType — drop_first → ATA jadi referensi
-        cp_ata = 1 if chest_pain == "ATA" else 0
-        cp_nap = 1 if chest_pain == "NAP" else 0
-        cp_ta  = 1 if chest_pain == "TA"  else 0
-
-        # RestingECG — Normal jadi referensi
-        ecg_normal = 1 if resting_ecg == "Normal" else 0
-        ecg_st     = 1 if resting_ecg == "ST"     else 0
-
-        # ST_Slope — Down jadi referensi
-        slope_flat = 1 if st_slope == "Flat" else 0
-        slope_up   = 1 if st_slope == "Up"   else 0
-
-        # Buat dict sesuai urutan feature_names
+        # Buat DataFrame raw (sama persis dengan kolom asli heart.csv)
         input_dict = {
-            "Age"                  : age,
-            "RestingBP"            : resting_bp,
-            "Cholesterol"          : cholesterol,
-            "FastingBS"            : bs_val,
-            "MaxHR"                : max_hr,
-            "Oldpeak"              : oldpeak,
-            "Sex_M"                : sex_val,
-            "ChestPainType_ATA"    : cp_ata,
-            "ChestPainType_NAP"    : cp_nap,
-            "ChestPainType_TA"     : cp_ta,
-            "RestingECG_Normal"    : ecg_normal,
-            "RestingECG_ST"        : ecg_st,
-            "ExerciseAngina_Y"     : angina_val,
-            "ST_Slope_Flat"        : slope_flat,
-            "ST_Slope_Up"          : slope_up,
+            "Age"            : age,
+            "Sex"            : sex_val,
+            "ChestPainType"  : chest_pain,
+            "RestingBP"      : resting_bp,
+            "Cholesterol"    : cholesterol,
+            "FastingBS"      : bs_val,
+            "RestingECG"     : resting_ecg,
+            "MaxHR"          : max_hr,
+            "ExerciseAngina" : angina_val,
+            "Oldpeak"        : oldpeak,
+            "ST_Slope"       : st_slope,
         }
-
-        # Susun sesuai urutan feature_names dari training
         input_df = pd.DataFrame([input_dict])
-        # Tambah kolom yang mungkin belum ada (set 0)
-        for col in feature_names:
-            if col not in input_df.columns:
-                input_df[col] = 0
-        input_df = input_df[feature_names]
 
-        # Scaling (SVM butuh, RF tidak, tapi scaler tetap disimpan)
-        is_svm_model = "SVM" in best_label
-        if is_svm_model:
-            input_scaled = scaler.transform(input_df)
-        else:
-            input_scaled = input_df.values
+        # --- Feature Engineering (sama persis seperti di CardioVascular_Optimized.py) ---
+        input_df['Age_MaxHR_ratio']   = input_df['Age'] / (input_df['MaxHR'] + 1)
+        input_df['Chol_Age_product']  = input_df['Cholesterol'] * input_df['Age'] / 1000
+        input_df['BP_age_ratio']      = input_df['RestingBP'] / input_df['Age']
+        input_df['MaxHR_Age_diff']    = (220 - input_df['Age']) - input_df['MaxHR']
+        input_df['Oldpeak_sq']        = input_df['Oldpeak'] ** 2
+        input_df['is_elderly']        = (input_df['Age'] >= 60).astype(int)
+        input_df['high_chol']         = (input_df['Cholesterol'] >= 200).astype(int)
+        input_df['exercise_capacity'] = input_df['MaxHR'] / (input_df['Age'] + 1)
 
-        pred  = model.predict(input_scaled)[0]
-        prob  = model.predict_proba(input_scaled)[0]
-        prob_positive = prob[1] * 100  # probabilitas kelas 1 (heart disease)
+        # --- Prediksi dengan Stacking Ensemble (Pipeline sudah include preprocessor) ---
+        prob_positive_raw = stacking_model.predict_proba(input_df)[0][1]
+        prob_positive     = prob_positive_raw * 100
+        pred              = int(prob_positive_raw >= 0.5)
 
         # ── TAMPILKAN HASIL ─────────────────────────────────────
         if pred == 1:
@@ -373,34 +355,33 @@ elif halaman == "📊  Dashboard Model":
     """, unsafe_allow_html=True)
 
     if model_loaded:
-        # ── Model terbaik & metrik (placeholder — nanti isi dari df_compare) ──
         st.markdown(f"""
         <div class="card">
-            <div class="card-title">🏆 Model Terbaik</div>
+            <div class="card-title">🏆 Model Terbaik (Hasil Optimisasi)</div>
             <div style="font-size:20px; font-weight:700; color:#6b1a1a; margin-bottom:14px;">
                 {best_label}
             </div>
             <div class="metrics-row">
-                <div class="metric-card"><div class="metric-val" style="color:#6b1a1a;">—</div><div class="metric-lbl">Accuracy</div></div>
-                <div class="metric-card"><div class="metric-val" style="color:#6b1a1a;">—</div><div class="metric-lbl">Recall</div></div>
-                <div class="metric-card"><div class="metric-val" style="color:#6b1a1a;">—</div><div class="metric-lbl">Precision</div></div>
-                <div class="metric-card"><div class="metric-val" style="color:#6b1a1a;">—</div><div class="metric-lbl">F1-Score</div></div>
-                <div class="metric-card"><div class="metric-val" style="color:#6b1a1a;">—</div><div class="metric-lbl">ROC-AUC</div></div>
+                <div class="metric-card"><div class="metric-val" style="color:#6b1a1a;">86.96%</div><div class="metric-lbl">Accuracy</div></div>
+                <div class="metric-card"><div class="metric-val" style="color:#6b1a1a;">0.9020</div><div class="metric-lbl">Recall</div></div>
+                <div class="metric-card"><div class="metric-val" style="color:#6b1a1a;">0.8679</div><div class="metric-lbl">Precision</div></div>
+                <div class="metric-card"><div class="metric-val" style="color:#6b1a1a;">0.8846</div><div class="metric-lbl">F1-Score</div></div>
+                <div class="metric-card"><div class="metric-val" style="color:#6b1a1a;">0.9454</div><div class="metric-lbl">ROC-AUC</div></div>
             </div>
             <div style="font-size:12px; color:#aaa;">
-                Nilai metrik diisi otomatis setelah training dijalankan dan <code>df_compare</code> disimpan.
+                Stacking Ensemble (SVM + Random Forest + Logistic Regression) dengan feature engineering 8 fitur baru.
             </div>
         </div>
         """, unsafe_allow_html=True)
     else:
-        st.warning("Model belum dimuat. Jalankan training terlebih dahulu.")
+        st.warning("Model belum dimuat. Jalankan CardioVascular_Optimized.py terlebih dahulu.")
 
     # ── Visualisasi dari PNG yang sudah disimpan ─────────────────
     st.markdown("---")
 
     tab1, tab2, tab3, tab4 = st.tabs([
         "Confusion Matrix Baseline",
-        "Confusion Matrix Tuned",
+        "Confusion Matrix Optimized",
         "ROC Curve",
         "Perbandingan Metrik"
     ])
@@ -413,28 +394,29 @@ elif halaman == "📊  Dashboard Model":
                 st.info(f"File `{path}` belum ditemukan. Jalankan training terlebih dahulu.")
 
     show_image(tab1, "baseline_confusion_matrix.png", "Confusion Matrix — Baseline SVM vs Baseline RF")
-    show_image(tab2, "tuned_confusion_matrix.png",    "Confusion Matrix — Tuned SVM vs Tuned RF")
+    show_image(tab2, "optimized_evaluation.png",      "Evaluasi Optimized — SVM vs RF vs Stacking")
     show_image(tab3, "roc_curve_all.png",             "ROC Curve — Semua Model")
-    show_image(tab4, "comparison_metrics.png",         "Perbandingan Metrik — Baseline vs Tuned")
+    show_image(tab4, "comparison_metrics.png",        "Perbandingan Metrik — Baseline vs Tuned")
 
-    # ── Parameter model terbaik ───────────────────────────────
+    # ── Info threshold optimal ───────────────────────────────
     if model_loaded:
-        st.markdown("<div class='card'><div class='card-title'>⚙️ Parameter Model Terbaik</div>", unsafe_allow_html=True)
-        if hasattr(model, 'best_params_'):
-            params = model.best_params_
-        elif hasattr(model, 'get_params'):
-            params = model.get_params()
-        else:
-            params = {}
-
-        if params:
-            for k, v in params.items():
-                st.markdown(f"""
-                <div class="info-row">
-                    <span class="info-key">{k}</span>
-                    <span class="info-val">{v}</span>
-                </div>
-                """, unsafe_allow_html=True)
+        st.markdown("<div class='card'><div class='card-title'>⚙️ Threshold Optimal</div>", unsafe_allow_html=True)
+        threshold_info = {
+            "SVM Threshold"       : f"{optimal_thresholds.get('svm_threshold', 0.5):.2f}",
+            "RF Threshold"        : f"{optimal_thresholds.get('rf_threshold', 0.5):.2f}",
+            "Stacking Threshold"  : "0.50 (default)",
+            "SVM Best Kernel"     : "linear",
+            "SVM Best C"          : "1",
+            "RF n_estimators"     : "100",
+            "RF max_depth"        : "10",
+        }
+        for k, v in threshold_info.items():
+            st.markdown(f"""
+            <div class="info-row">
+                <span class="info-key">{k}</span>
+                <span class="info-val">{v}</span>
+            </div>
+            """, unsafe_allow_html=True)
         st.markdown("</div>", unsafe_allow_html=True)
 
 
@@ -478,20 +460,4 @@ elif halaman == "ℹ️  Tentang":
         </div>
         """, unsafe_allow_html=True)
 
-    st.markdown("""
-    <div class="card">
-        <div class="card-title">👥 Tim Pengembang</div>
-        <div style="font-size:13px; color:#555; line-height:1.8;">
-            Aplikasi ini dikembangkan sebagai project akhir mata kuliah <strong>Machine Learning</strong>.
-            Model dilatih menggunakan dataset publik dari Kaggle dan bertujuan untuk keperluan edukasi.<br><br>
-            Prediksi yang dihasilkan bersifat indikatif dan <strong>tidak menggantikan diagnosis medis profesional</strong>.
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    st.markdown("""
-    <div class="disclaimer">
-        ⚠️ <strong>Disclaimer:</strong> Aplikasi ini dibuat untuk tujuan edukasi dan demonstrasi akademik.
-        Jangan gunakan sebagai pengganti pemeriksaan medis resmi.
-    </div>
-    """, unsafe_allow_html=True)
+

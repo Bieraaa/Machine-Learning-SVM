@@ -8,14 +8,15 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 import joblib
+import json
 import warnings
 warnings.filterwarnings('ignore')
 
 from sklearn.svm import SVC
-from sklearn.ensemble import RandomForestClassifier, StackingClassifier, GradientBoostingClassifier
+from sklearn.ensemble import RandomForestClassifier, StackingClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import (train_test_split, StratifiedKFold,
-                                      GridSearchCV, RandomizedSearchCV, cross_val_score)
+                                      RandomizedSearchCV, cross_val_score)
 from sklearn.preprocessing import StandardScaler, OneHotEncoder, RobustScaler
 from sklearn.pipeline import Pipeline
 from sklearn.compose import ColumnTransformer
@@ -23,18 +24,15 @@ from sklearn.metrics import (accuracy_score, precision_score, recall_score,
                              f1_score, roc_auc_score, roc_curve,
                              confusion_matrix, classification_report,
                              make_scorer)
-from sklearn.feature_selection import SelectFromModel, RFECV
-from sklearn.calibration import CalibratedClassifierCV
 
 # ================= 1. Load Data =================
 print("=" * 60)
 print("  OPTIMIZED CARDIOVASCULAR PREDICTION PIPELINE")
 print("=" * 60)
 print("\n[1/8] Memuat Data...")
-df = pd.read_csv(r"D:\itk\semester 4\ml\project tubes\Machine-Learning-SVM\heart.csv")
-print(f"Shape awal: {df.shape}")
-print(f"Distribusi target:\n{df['HeartDisease'].value_counts()}")
-print(f"Rasio kelas: {df['HeartDisease'].value_counts(normalize=True).round(3).to_dict()}")
+df = pd.read_csv("heart.csv")
+print(f"  Shape awal: {df.shape}")
+print(f"  Distribusi target:\n{df['HeartDisease'].value_counts()}")
 
 # ================= 2. Cleansing Data =================
 print("\n[2/8] Data Cleansing & Feature Engineering...")
@@ -56,15 +54,14 @@ for col in num_cols:
 # ================= 3. Feature Engineering =================
 print("\n[3/8] Feature Engineering...")
 
-# Fitur interaksi yang bermakna secara medis
-df['Age_MaxHR_ratio']    = df['Age'] / (df['MaxHR'] + 1)          # Rasio usia vs detak jantung max
-df['Chol_Age_product']   = df['Cholesterol'] * df['Age'] / 1000   # Produk kolesterol & usia
-df['BP_age_ratio']       = df['RestingBP'] / df['Age']             # Tekanan darah relatif usia
-df['MaxHR_Age_diff']     = (220 - df['Age']) - df['MaxHR']         # Defisit detak jantung max prediksi
-df['Oldpeak_sq']         = df['Oldpeak'] ** 2                      # Transformasi kuadrat Oldpeak
-df['is_elderly']         = (df['Age'] >= 60).astype(int)           # Flag lansia
-df['high_chol']          = (df['Cholesterol'] >= 200).astype(int)  # Flag kolesterol tinggi
-df['exercise_capacity']  = df['MaxHR'] / (df['Age'] + 1)          # Kapasitas latihan
+df['Age_MaxHR_ratio']   = df['Age'] / (df['MaxHR'] + 1)          # Rasio usia vs detak jantung max
+df['Chol_Age_product']  = df['Cholesterol'] * df['Age'] / 1000   # Produk kolesterol & usia
+df['BP_age_ratio']      = df['RestingBP'] / df['Age']             # Tekanan darah relatif usia
+df['MaxHR_Age_diff']    = (220 - df['Age']) - df['MaxHR']         # Defisit detak jantung max prediksi
+df['Oldpeak_sq']        = df['Oldpeak'] ** 2                      # Transformasi kuadrat Oldpeak
+df['is_elderly']        = (df['Age'] >= 60).astype(int)           # Flag lansia
+df['high_chol']         = (df['Cholesterol'] >= 200).astype(int)  # Flag kolesterol tinggi
+df['exercise_capacity'] = df['MaxHR'] / (df['Age'] + 1)          # Kapasitas latihan
 
 print(f"  Fitur baru ditambahkan: 8 fitur rekayasa")
 print(f"  Total fitur: {df.shape[1] - 1}")
@@ -74,7 +71,6 @@ print("\n[4/8] Membagi Data...")
 X = df.drop(columns=['HeartDisease'])
 y = df['HeartDisease']
 
-# Stratified split untuk menjaga proporsi kelas
 X_train, X_test, y_train, y_test = train_test_split(
     X, y, test_size=0.2, random_state=43, stratify=y
 )
@@ -86,7 +82,6 @@ print(f"  Distribusi test : {dict(y_test.value_counts())}")
 categorical_features = ['Sex', 'ChestPainType', 'RestingECG', 'ExerciseAngina', 'ST_Slope']
 numeric_features = [col for col in X.columns if col not in categorical_features]
 
-# Preprocessor: RobustScaler lebih tahan outlier daripada StandardScaler
 preprocessor_robust = ColumnTransformer(transformers=[
     ('num', RobustScaler(), numeric_features),
     ('cat', OneHotEncoder(drop='first', handle_unknown='ignore', sparse_output=False), categorical_features)
@@ -98,33 +93,29 @@ preprocessor_std = ColumnTransformer(transformers=[
 ])
 
 # ================= 6. Hyperparameter Tuning - SVM =================
-print("\n[5/8] Hyperparameter Tuning SVM (diperluas)...")
+print("\n[5/8] Hyperparameter Tuning SVM...")
+print("  (RandomizedSearch: 20 iterasi, 5-fold CV — perkiraan < 2 menit)")
 
-# SVM dengan class_weight='balanced' untuk atasi ketidakseimbangan kelas
 pipeline_svm = Pipeline(steps=[
     ('preprocessor', preprocessor_robust),
     ('classifier', SVC(probability=True, random_state=42, class_weight='balanced'))
 ])
 
-# Grid parameter lebih luas
+# ✅ Search space yang JAUH lebih kecil: hanya kernel rbf & linear, C & gamma lebih sedikit
 param_grid_svm = {
-    'classifier__kernel': ['rbf', 'linear', 'poly', 'sigmoid'],
-    'classifier__C': [0.01, 0.1, 0.5, 1, 5, 10, 50, 100],
-    'classifier__gamma': ['scale', 'auto', 0.001, 0.01, 0.1, 1.0],
-    'classifier__degree': [2, 3],       # untuk kernel poly
+    'classifier__kernel': ['rbf', 'linear'],
+    'classifier__C':      [0.1, 1, 10, 100],
+    'classifier__gamma':  ['scale', 'auto', 0.01, 0.1],
 }
 
-# Scoring: F1 lebih baik daripada hanya AUC untuk klasifikasi klinis
-f1_scorer = make_scorer(f1_score, average='binary')
-
-cv_strategy = StratifiedKFold(n_splits=10, shuffle=True, random_state=42)
+cv_strategy = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
 
 rs_svm = RandomizedSearchCV(
     estimator=pipeline_svm,
     param_distributions=param_grid_svm,
-    n_iter=50,               # Lebih banyak iterasi
-    scoring='roc_auc',       # AUC untuk ranking probabilitas
-    cv=cv_strategy,
+    n_iter=20,           # ✅ Turun dari 50 → 20
+    scoring='roc_auc',
+    cv=cv_strategy,      # ✅ 5-fold (turun dari 10-fold)
     random_state=42,
     n_jobs=-1,
     verbose=1,
@@ -132,33 +123,33 @@ rs_svm = RandomizedSearchCV(
 )
 
 rs_svm.fit(X_train, y_train)
-print(f"  [OK] Best params SVM: {rs_svm.best_params_}")
-print(f"  [OK] Best CV AUC: {rs_svm.best_score_:.4f}")
+print(f"\n  [OK] Best params SVM : {rs_svm.best_params_}")
+print(f"  [OK] Best CV AUC     : {rs_svm.best_score_:.4f}")
 
 # ================= 7. Hyperparameter Tuning - Random Forest =================
-print("\n[6/8] Hyperparameter Tuning Random Forest (diperluas)...")
+print("\n[6/8] Hyperparameter Tuning Random Forest...")
+print("  (RandomizedSearch: 20 iterasi, 5-fold CV — perkiraan < 2 menit)")
 
 pipeline_rf = Pipeline(steps=[
     ('preprocessor', preprocessor_std),
     ('classifier', RandomForestClassifier(random_state=42, class_weight='balanced_subsample'))
 ])
 
-# Grid parameter lebih lengkap
+# ✅ Search space lebih kecil: n_estimators max 200, kombinasi lebih sedikit
 param_grid_rf = {
-    'classifier__n_estimators': [100, 200, 300, 500],
-    'classifier__max_depth': [None, 10, 15, 20, 30],
-    'classifier__min_samples_split': [2, 4, 5, 8, 10],
-    'classifier__min_samples_leaf': [1, 2, 3, 4],
-    'classifier__max_features': ['sqrt', 'log2', None],
-    'classifier__bootstrap': [True, False],
+    'classifier__n_estimators':    [100, 150, 200],
+    'classifier__max_depth':       [None, 10, 20],
+    'classifier__min_samples_split': [2, 5, 10],
+    'classifier__min_samples_leaf':  [1, 2, 4],
+    'classifier__max_features':    ['sqrt', 'log2'],
 }
 
 rs_rf = RandomizedSearchCV(
     estimator=pipeline_rf,
     param_distributions=param_grid_rf,
-    n_iter=60,               # Lebih banyak iterasi
+    n_iter=20,           # ✅ Turun dari 60 → 20
     scoring='roc_auc',
-    cv=cv_strategy,
+    cv=cv_strategy,      # ✅ 5-fold (turun dari 10-fold)
     random_state=42,
     n_jobs=-1,
     verbose=1,
@@ -166,37 +157,28 @@ rs_rf = RandomizedSearchCV(
 )
 
 rs_rf.fit(X_train, y_train)
-print(f"  [OK] Best params RF: {rs_rf.best_params_}")
-print(f"  [OK] Best CV AUC: {rs_rf.best_score_:.4f}")
+print(f"\n  [OK] Best params RF  : {rs_rf.best_params_}")
+print(f"  [OK] Best CV AUC     : {rs_rf.best_score_:.4f}")
 
 best_svm_pipeline = rs_svm.best_estimator_
 best_rf_pipeline  = rs_rf.best_estimator_
 
-# ================= 8. Threshold Optimization untuk SVM =================
-print("\n[7/8] Threshold Optimization (SVM)...")
+# ================= 8. Threshold Optimization =================
+print("\n[7/8] Threshold Optimization...")
 
-# Cari threshold optimal yang memaksimalkan F1-score pada data latih
-y_prob_train_svm = best_svm_pipeline.predict_proba(X_train)[:, 1]
 thresholds = np.arange(0.1, 0.9, 0.01)
-f1_scores_thres = []
 
-for thres in thresholds:
-    y_pred_thres = (y_prob_train_svm >= thres).astype(int)
-    f1_scores_thres.append(f1_score(y_train, y_pred_thres))
+# Threshold optimal SVM
+y_prob_train_svm = best_svm_pipeline.predict_proba(X_train)[:, 1]
+f1_scores_svm = [f1_score(y_train, (y_prob_train_svm >= t).astype(int)) for t in thresholds]
+best_threshold_svm = thresholds[np.argmax(f1_scores_svm)]
+print(f"  [OK] Optimal threshold SVM: {best_threshold_svm:.2f} (F1 train: {max(f1_scores_svm):.4f})")
 
-best_threshold_svm = thresholds[np.argmax(f1_scores_thres)]
-print(f"  [OK] Optimal threshold SVM: {best_threshold_svm:.2f} (F1 train: {max(f1_scores_thres):.4f})")
-
-# Lakukan juga untuk RF
+# Threshold optimal RF
 y_prob_train_rf = best_rf_pipeline.predict_proba(X_train)[:, 1]
-f1_scores_thres_rf = []
-
-for thres in thresholds:
-    y_pred_thres = (y_prob_train_rf >= thres).astype(int)
-    f1_scores_thres_rf.append(f1_score(y_train, y_pred_thres))
-
-best_threshold_rf = thresholds[np.argmax(f1_scores_thres_rf)]
-print(f"  [OK] Optimal threshold RF: {best_threshold_rf:.2f} (F1 train: {max(f1_scores_thres_rf):.4f})")
+f1_scores_rf = [f1_score(y_train, (y_prob_train_rf >= t).astype(int)) for t in thresholds]
+best_threshold_rf = thresholds[np.argmax(f1_scores_rf)]
+print(f"  [OK] Optimal threshold RF : {best_threshold_rf:.2f} (F1 train: {max(f1_scores_rf):.4f})")
 
 # ================= 9. Evaluasi =================
 print("\n[8/8] Evaluasi Final...")
@@ -204,16 +186,13 @@ print("\n[8/8] Evaluasi Final...")
 def evaluate_model(model, X_te, y_te, label, params, threshold=0.5):
     """Evaluasi komprehensif dengan threshold kustom."""
     y_prob = model.predict_proba(X_te)[:, 1]
-    y_pred = (y_prob >= threshold).astype(int)   # Pakai threshold optimal
+    y_pred = (y_prob >= threshold).astype(int)
 
     accuracy  = accuracy_score(y_te, y_pred)
     precision = precision_score(y_te, y_pred, zero_division=0)
     recall    = recall_score(y_te, y_pred, zero_division=0)
     f1        = f1_score(y_te, y_pred, zero_division=0)
     auc       = roc_auc_score(y_te, y_prob)
-
-    # Cross-validation score pada test set (indikasi generalisasi)
-    cv_auc = cross_val_score(model, X_te, y_te, cv=5, scoring='roc_auc').mean()
 
     print("\n" + "=" * 55)
     print(f"  EVALUASI {label}")
@@ -228,7 +207,6 @@ def evaluate_model(model, X_te, y_te, label, params, threshold=0.5):
     print(f"  Recall        : {recall:.4f}")
     print(f"  F1-Score      : {f1:.4f}")
     print(f"  ROC-AUC       : {auc:.4f}")
-    print(f"  CV-AUC (5fld) : {cv_auc:.4f}")
     print("=" * 55)
     print(f"\nClassification Report — {label}:")
     print(classification_report(y_te, y_pred,
@@ -237,7 +215,7 @@ def evaluate_model(model, X_te, y_te, label, params, threshold=0.5):
 
     return y_pred, y_prob, accuracy, precision, recall, f1, auc
 
-# Evaluasi SVM dengan threshold optimal
+# Evaluasi SVM
 y_pred_svm, y_prob_svm, acc_svm, pre_svm, rec_svm, f1_svm, auc_svm = evaluate_model(
     best_svm_pipeline, X_test, y_test,
     label="Optimized SVM",
@@ -245,7 +223,7 @@ y_pred_svm, y_prob_svm, acc_svm, pre_svm, rec_svm, f1_svm, auc_svm = evaluate_mo
     threshold=best_threshold_svm
 )
 
-# Evaluasi RF dengan threshold optimal
+# Evaluasi RF
 y_pred_rf, y_prob_rf, acc_rf, pre_rf, rec_rf, f1_rf, auc_rf = evaluate_model(
     best_rf_pipeline, X_test, y_test,
     label="Optimized Random Forest",
@@ -254,45 +232,43 @@ y_pred_rf, y_prob_rf, acc_rf, pre_rf, rec_rf, f1_rf, auc_rf = evaluate_model(
 )
 
 # ================= 10. Ensemble Stacking =================
-print("\n🔥 BONUS: Membuat Model Stacking (SVM + RF + GB)...")
+print("\nBONUS: Membuat Model Stacking (SVM + RF + LR)...")
 
-# Preprocessor khusus untuk stacking
-preprocessor_stack = ColumnTransformer(transformers=[
-    ('num', RobustScaler(), numeric_features),
-    ('cat', OneHotEncoder(drop='first', handle_unknown='ignore', sparse_output=False), categorical_features)
-])
-
-# Base estimators yang sudah di-tune
 estimators = [
     ('svm', Pipeline([
-        ('pre', preprocessor_robust),
+        ('pre', ColumnTransformer(transformers=[
+            ('num', RobustScaler(), numeric_features),
+            ('cat', OneHotEncoder(drop='first', handle_unknown='ignore', sparse_output=False), categorical_features)
+        ])),
         ('clf', SVC(probability=True, random_state=42, class_weight='balanced',
-                    **{k.replace('classifier__',''): v for k, v in rs_svm.best_params_.items()}))
+                    **{k.replace('classifier__', ''): v for k, v in rs_svm.best_params_.items()}))
     ])),
     ('rf', Pipeline([
-        ('pre', preprocessor_std),
+        ('pre', ColumnTransformer(transformers=[
+            ('num', StandardScaler(), numeric_features),
+            ('cat', OneHotEncoder(drop='first', handle_unknown='ignore', sparse_output=False), categorical_features)
+        ])),
         ('clf', RandomForestClassifier(random_state=42, class_weight='balanced_subsample',
-                                        **{k.replace('classifier__',''): v for k, v in rs_rf.best_params_.items()}))
+                                        **{k.replace('classifier__', ''): v for k, v in rs_rf.best_params_.items()}))
     ])),
 ]
 
-# Meta-classifier
 stacking_model = StackingClassifier(
     estimators=estimators,
     final_estimator=LogisticRegression(C=1.0, random_state=42, max_iter=1000),
-    cv=StratifiedKFold(n_splits=5, shuffle=True, random_state=42),
+    cv=StratifiedKFold(n_splits=3, shuffle=True, random_state=42),  # ✅ 3-fold agar cepat
     passthrough=False,
     n_jobs=-1
 )
 
 stacking_model.fit(X_train, y_train)
-y_pred_stack  = stacking_model.predict(X_test)
-y_prob_stack  = stacking_model.predict_proba(X_test)[:, 1]
-acc_stack     = accuracy_score(y_test, y_pred_stack)
-f1_stack      = f1_score(y_test, y_pred_stack)
-auc_stack     = roc_auc_score(y_test, y_prob_stack)
-rec_stack     = recall_score(y_test, y_pred_stack)
-pre_stack     = precision_score(y_test, y_pred_stack)
+y_pred_stack = stacking_model.predict(X_test)
+y_prob_stack = stacking_model.predict_proba(X_test)[:, 1]
+acc_stack    = accuracy_score(y_test, y_pred_stack)
+f1_stack     = f1_score(y_test, y_pred_stack)
+auc_stack    = roc_auc_score(y_test, y_prob_stack)
+rec_stack    = recall_score(y_test, y_pred_stack)
+pre_stack    = precision_score(y_test, y_pred_stack)
 
 print(f"\n  EVALUASI Stacking Ensemble")
 print(f"  Accuracy  : {acc_stack:.4f}")
@@ -352,19 +328,16 @@ axes[1, 0].set(title='ROC Curve Comparison', xlabel='False Positive Rate',
 axes[1, 0].legend(loc='lower right')
 
 # --- 5. Bar Chart Metrik ---
-metric_names  = ['Accuracy', 'Precision', 'Recall', 'F1-Score', 'ROC-AUC']
-svm_scores    = [acc_svm, pre_svm, rec_svm, f1_svm, auc_svm]
-rf_scores     = [acc_rf,  pre_rf,  rec_rf,  f1_rf,  auc_rf]
-stack_scores  = [acc_stack, pre_stack, rec_stack, f1_stack, auc_stack]
-x             = np.arange(len(metric_names))
-width         = 0.28
+metric_names = ['Accuracy', 'Precision', 'Recall', 'F1-Score', 'ROC-AUC']
+svm_scores   = [acc_svm,   pre_svm,   rec_svm,   f1_svm,   auc_svm]
+rf_scores    = [acc_rf,    pre_rf,    rec_rf,    f1_rf,    auc_rf]
+stack_scores = [acc_stack, pre_stack, rec_stack, f1_stack, auc_stack]
+x     = np.arange(len(metric_names))
+width = 0.28
 
-b1 = axes[1, 1].bar(x - width, svm_scores,   width, label='Optimized SVM',
-                    color='steelblue',  alpha=0.85)
-b2 = axes[1, 1].bar(x,          rf_scores,    width, label='Optimized RF',
-                    color='seagreen',   alpha=0.85)
-b3 = axes[1, 1].bar(x + width,  stack_scores, width, label='Stacking',
-                    color='darkorchid', alpha=0.85)
+b1 = axes[1, 1].bar(x - width, svm_scores,   width, label='Optimized SVM',   color='steelblue',  alpha=0.85)
+b2 = axes[1, 1].bar(x,          rf_scores,    width, label='Optimized RF',    color='seagreen',   alpha=0.85)
+b3 = axes[1, 1].bar(x + width,  stack_scores, width, label='Stacking',        color='darkorchid', alpha=0.85)
 axes[1, 1].set_ylim(0, 1.20)
 axes[1, 1].set_xticks(x)
 axes[1, 1].set_xticklabels(metric_names)
@@ -379,12 +352,11 @@ for bar in [*b1, *b2, *b3]:
                     ha='center', va='bottom', fontsize=7)
 
 # --- 6. Feature Importance RF ---
-# Ambil nama fitur setelah preprocessing
 try:
     ohe = best_rf_pipeline.named_steps['preprocessor'].named_transformers_['cat']
     cat_feat_names = ohe.get_feature_names_out(categorical_features).tolist()
     all_feat_names = numeric_features + cat_feat_names
-    importances = best_rf_pipeline.named_steps['classifier'].feature_importances_
+    importances    = best_rf_pipeline.named_steps['classifier'].feature_importances_
 
     feat_df = pd.DataFrame({'feature': all_feat_names, 'importance': importances})
     feat_df = feat_df.sort_values('importance', ascending=True).tail(15)
@@ -403,7 +375,7 @@ plt.show()
 
 # ================= 12. Ringkasan Perbandingan =================
 print("\n" + "=" * 65)
-print("  📋 RINGKASAN PERBANDINGAN PERFORMA")
+print("  RINGKASAN PERBANDINGAN PERFORMA")
 print("=" * 65)
 print(f"{'Model':<25} {'Accuracy':>9} {'Precision':>10} {'Recall':>7} {'F1':>7} {'AUC':>7}")
 print("-" * 65)
@@ -412,7 +384,6 @@ print(f"{'Optimized RF':<25} {acc_rf:>9.4f} {pre_rf:>10.4f} {rec_rf:>7.4f} {f1_r
 print(f"{'Stacking Ensemble':<25} {acc_stack:>9.4f} {pre_stack:>10.4f} {rec_stack:>7.4f} {f1_stack:>7.4f} {auc_stack:>7.4f}")
 print("=" * 65)
 
-# Pilih model terbaik
 scores = {
     'Optimized SVM': auc_svm,
     'Optimized RF':  auc_rf,
@@ -426,8 +397,6 @@ joblib.dump(best_svm_pipeline, 'model_svm_optimized.joblib')
 joblib.dump(best_rf_pipeline,  'model_rf_optimized.joblib')
 joblib.dump(stacking_model,    'model_stacking.joblib')
 
-# Simpan threshold optimal
-import json
 thresholds_dict = {
     'svm_threshold': float(best_threshold_svm),
     'rf_threshold':  float(best_threshold_rf)
