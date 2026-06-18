@@ -118,12 +118,12 @@ parameter_SVM = {
 # RF: n_estimators (jumlah pohon), max_depth (kedalaman), dll
 
 parameter_RF = {
-    'n_estimators' : [100, 200, 300, 500],
-    'max_depth' : [None, 5, 10, 15, 20],
-    'min_samples_split' : [2, 5, 10],
-    'min_samples_leaf' : [1, 2, 4],
-    'max_features' : ['sqrt', 'log2'],
-    'class_weight'     : ['balanced', None]
+    'n_estimators' : [ 200, 300, 500],
+    'max_depth' : [None, 10, 15],
+    'min_samples_split' : [2, 5],
+    'min_samples_leaf' : [1, 2],
+    'max_features' : ['sqrt'],
+    'class_weight'     : [None]
 }
 
 #---------------- Randomized Search -----------------------
@@ -131,13 +131,13 @@ parameter_RF = {
 search_svm = RandomizedSearchCV(
     SVC(probability=True, random_state=42),
     parameter_SVM, n_iter=60, cv= 5,
-    scoring='recall', random_state=42, n_jobs=-1, refit=True
+    scoring='roc_auc', random_state=42, n_jobs=-1, refit=True
 )
 
 search_rf = RandomizedSearchCV(
     RandomForestClassifier(random_state=42),
-    parameter_RF, n_iter=70, cv=5,
-    scoring= 'recall', random_state=42, n_jobs= -1, refit=True
+    parameter_RF, n_iter=100, cv=5,
+    scoring= 'roc_auc', random_state=42, n_jobs= -1, refit=True
 )
 
 #------------------- Tuning ------------------------------
