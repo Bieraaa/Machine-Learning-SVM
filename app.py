@@ -592,30 +592,6 @@ if st.button("🔍 Lakukan Prediksi", type="primary"):
         st.error("⚠️ **BERISIKO TINGGI** mengidap Penyakit Kardiovaskular.")
         st.write(f"Tingkat Keyakinan Model: **{prediction_proba[0][1] * 100:.2f}%**")
 
-        # ── Nasihat Kesehatan Berdasarkan Data Pasien ────────────
-        advice_items = generate_health_advice(
-            age, sex, chest_pain, resting_bp, cholesterol,
-            fasting_bs, resting_ecg, max_hr,
-            exercise_angina, oldpeak, st_slope
-        )
-
-        st.markdown("---")
-        st.subheader("💡 Nasihat & Rekomendasi Kesehatan")
-        st.caption(
-            "Berikut adalah rekomendasi berdasarkan kondisi klinis yang terdeteksi dari data pasien. "
-            "**Konsultasikan selalu dengan dokter atau tenaga medis profesional.**"
-        )
-
-        for item in advice_items:
-            with st.expander(f"{item['icon']}  {item['judul']}", expanded=True):
-                st.markdown(item['isi'])
-
-        st.info(
-            "🏥 **Penting:** Hasil prediksi ini bersifat sebagai alat bantu skrining awal, "
-            "bukan diagnosis medis resmi. Segera kunjungi dokter spesialis jantung untuk "
-            "pemeriksaan dan penanganan yang tepat."
-        )
-
     else:
         st.success("✅ **NORMAL** (Risiko Rendah Penyakit Kardiovaskular).")
         st.write(f"Tingkat Keyakinan Model: **{prediction_proba[0][0] * 100:.2f}%**")
