@@ -6,7 +6,6 @@ import matplotlib.pyplot as plt
 import matplotlib
 matplotlib.use('Agg')
 import os
-import json
 import logging
 logging.getLogger("streamlit").setLevel(logging.ERROR)
 
@@ -21,18 +20,21 @@ st.set_page_config(
 )
 
 # ===============================================================
-# LOAD MODEL & ARTEFAK
+# LOAD MODEL & ARTEFAK dari Save_model/ (CardioVascular.py)
 # ===============================================================
+SAVE_DIR = "Save_model"
+
 @st.cache_resource
 def load_artifacts():
-    svm_model = joblib.load("model_svm_optimized.joblib")
-    rf_model  = joblib.load("model_rf_optimized.joblib")
-    with open("optimal_thresholds.json", "r") as f:
-        thresholds = json.load(f)
-    return svm_model, rf_model, thresholds
+    svm_model   = joblib.load(os.path.join(SAVE_DIR, "tuned_svm.pkl"))
+    rf_model    = joblib.load(os.path.join(SAVE_DIR, "tuned_rf.pkl"))
+    preprocessor = joblib.load(os.path.join(SAVE_DIR, "preprocessor.pkl"))
+    scaler      = joblib.load(os.path.join(SAVE_DIR, "scaler.pkl"))
+    clip_bounds = joblib.load(os.path.join(SAVE_DIR, "clip_bounds.pkl"))
+    return svm_model, rf_model, preprocessor, scaler, clip_bounds
 
 try:
-    svm_model, rf_model, optimal_thresholds = load_artifacts()
+    svm_model, rf_model, preprocessor, scaler, clip_bounds = load_artifacts()
     model_loaded = True
 except Exception as e:
     model_loaded = False
@@ -56,33 +58,17 @@ with st.sidebar:
 
     st.markdown("---")
 
-    # Input fields
-    age = st.slider("Umur (Age)", min_value=20, max_value=100, value=50)
-    sex = st.selectbox("Jenis Kelamin (Sex)", ["M", "F"])
-    chest_pain = st.selectbox(
-        "Tipe Nyeri Dada (ChestPainType)",
-        ["ATA", "NAP", "ASY", "TA"]
-    )
-    resting_bp = st.slider("Tekanan Darah (RestingBP)", min_value=80, max_value=220, value=120)
+    age         = st.slider("Umur (Age)", min_value=20, max_value=100, value=50)
+    sex         = st.selectbox("Jenis Kelamin (Sex)", ["M", "F"])
+    chest_pain  = st.selectbox("Tipe Nyeri Dada (ChestPainType)", ["ATA", "NAP", "ASY", "TA"])
+    resting_bp  = st.slider("Tekanan Darah (RestingBP)", min_value=80, max_value=220, value=120)
     cholesterol = st.slider("Kolesterol (Cholesterol)", min_value=100, max_value=600, value=200)
-    fasting_bs = st.selectbox(
-        "Gula Darah Puasa > 120? (FastingBS)",
-        ["0", "1"]
-    )
-    resting_ecg = st.selectbox(
-        "Resting ECG",
-        ["Normal", "ST", "LVH"]
-    )
-    max_hr = st.slider("Detak Jantung Maks (MaxHR)", min_value=60, max_value=220, value=150)
-    exercise_angina = st.selectbox(
-        "Exercise Angina",
-        ["N", "Y"]
-    )
-    oldpeak = st.slider("Oldpeak", min_value=-3.0, max_value=7.0, value=0.0, step=0.1)
-    st_slope = st.selectbox(
-        "ST Slope",
-        ["Up", "Flat", "Down"]
-    )
+    fasting_bs  = st.selectbox("Gula Darah Puasa > 120? (FastingBS)", ["0", "1"])
+    resting_ecg = st.selectbox("Resting ECG", ["Normal", "ST", "LVH"])
+    max_hr      = st.slider("Detak Jantung Maks (MaxHR)", min_value=60, max_value=220, value=150)
+    exercise_angina = st.selectbox("Exercise Angina", ["N", "Y"])
+    oldpeak     = st.slider("Oldpeak", min_value=-3.0, max_value=7.0, value=0.0, step=0.1)
+    st_slope    = st.selectbox("ST Slope", ["Up", "Flat", "Down"])
 
     st.markdown("---")
     predict_btn = st.button("🔍 Prediksi", use_container_width=True)
@@ -104,9 +90,7 @@ col_svm, col_rf = st.columns(2)
 
 with col_svm:
     st.markdown("### 🔵 Tuned SVM")
-    st.markdown(
-        "Parameter Terbaik: **kernel**: linear, **gamma**: 0.001, **C**: 50"
-    )
+    st.markdown("Parameter Terbaik: **kernel**: linear, **gamma**: 0.001, **C**: 50")
     st.metric("Accuracy",  "0.8696")
     st.metric("Precision", "0.8750")
     st.metric("Recall",    "0.8922")
@@ -123,16 +107,13 @@ with col_rf:
     st.metric("Recall",    "0.9216")
     st.metric("F1-Score",  "0.8953")
 
-# ── Stacking Ensemble ───────────────────────────────────────────
-
-
 # ── Visualisasi dari PNG ────────────────────────────────────────
 st.markdown("---")
 st.markdown("## 🖼️ Visualisasi Evaluasi")
 
 tab1, tab2, tab3, tab4 = st.tabs([
     "Confusion Matrix Baseline",
-    "Confusion Matrix Optimized",
+    "Confusion Matrix Tuned",
     "ROC Curve",
     "Perbandingan Metrik"
 ])
@@ -142,29 +123,12 @@ def show_image(tab, path, caption):
         if os.path.exists(path):
             st.image(path, caption=caption, use_container_width=True)
         else:
-            st.info(f"File `{path}` belum ditemukan. Jalankan training terlebih dahulu.")
+            st.info(f"File `{path}` belum ditemukan. Jalankan CardioVascular.py terlebih dahulu.")
 
 show_image(tab1, "baseline_confusion_matrix.png", "Confusion Matrix — Baseline SVM vs Baseline RF")
-show_image(tab2, "optimized_evaluation.png",      "Evaluasi Optimized — SVM vs RF vs Stacking")
+show_image(tab2, "tuned_confusion_matrix.png",    "Confusion Matrix — Tuned SVM vs Tuned RF")
 show_image(tab3, "roc_curve_all.png",             "ROC Curve — Semua Model")
 show_image(tab4, "comparison_metrics.png",        "Perbandingan Metrik — Baseline vs Tuned")
-
-# ── Threshold & Parameter Info ──────────────────────────────────
-if model_loaded:
-    st.markdown("---")
-    st.markdown("## ⚙️ Threshold & Parameter Optimal")
-
-    col_t1, col_t2 = st.columns(2)
-    with col_t1:
-        st.markdown("**Threshold Optimal**")
-        st.write(f"- SVM Threshold : `{optimal_thresholds.get('svm_threshold', 0.5):.2f}`")
-        st.write(f"- RF Threshold  : `{optimal_thresholds.get('rf_threshold', 0.5):.2f}`")
-    with col_t2:
-        st.markdown("**Parameter Model**")
-        st.write("- SVM Best Kernel : `linear`")
-        st.write("- SVM Best C      : `50`")
-        st.write("- RF n_estimators : `300`")
-        st.write("- RF max_depth    : `None`")
 
 # ── Informasi Dataset & Teknis ──────────────────────────────────
 st.markdown("---")
@@ -189,67 +153,79 @@ with col_i2:
     st.write("- Framework ML   : Scikit-learn")
     st.write("- UI             : Streamlit")
 
+# ── Error load model ─────────────────────────────────────────────
+if not model_loaded:
+    st.markdown("---")
+    st.error(f"⚠️ Model gagal dimuat: {load_error}")
+    st.info("👉 Jalankan terlebih dahulu: `python CardioVascular.py` untuk menghasilkan file model di folder `Save_model/`")
+
 # ===============================================================
 # HASIL PREDIKSI — muncul setelah tombol ditekan
 # ===============================================================
 if predict_btn:
     if not model_loaded:
-        st.error(f"Model gagal dimuat: {load_error}")
+        st.error("Model belum tersedia. Jalankan `python CardioVascular.py` terlebih dahulu.")
     else:
         st.markdown("---")
         st.markdown("## 🔮 Hasil Prediksi")
 
-        # Mapping pilihan model
+        # Pilih model
         if "SVM" in algo_choice:
-            selected_model     = svm_model
-            selected_label     = "Tuned SVM"
-            selected_threshold = optimal_thresholds.get('svm_threshold', 0.5)
+            selected_model = svm_model
+            selected_label = "Tuned SVM"
+            use_scaler     = True
         else:
-            selected_model     = rf_model
-            selected_label     = "Tuned Random Forest"
-            selected_threshold = optimal_thresholds.get('rf_threshold', 0.5)
+            selected_model = rf_model
+            selected_label = "Tuned Random Forest"
+            use_scaler     = False
 
-        # Siapkan input DataFrame
+        # ── Preprocessing — sama persis seperti CardioVascular.py ──
         input_dict = {
             "Age"            : age,
             "Sex"            : sex,
             "ChestPainType"  : chest_pain,
-            "RestingBP"      : resting_bp,
-            "Cholesterol"    : cholesterol,
+            "RestingBP"      : float(resting_bp),
+            "Cholesterol"    : float(cholesterol),
             "FastingBS"      : int(fasting_bs),
             "RestingECG"     : resting_ecg,
-            "MaxHR"          : max_hr,
+            "MaxHR"          : float(max_hr),
             "ExerciseAngina" : exercise_angina,
-            "Oldpeak"        : oldpeak,
+            "Oldpeak"        : float(oldpeak),
             "ST_Slope"       : st_slope,
         }
         input_df = pd.DataFrame([input_dict])
 
-        # Feature Engineering
-        input_df['Age_MaxHR_ratio']   = input_df['Age'] / (input_df['MaxHR'] + 1)
-        input_df['Chol_Age_product']  = input_df['Cholesterol'] * input_df['Age'] / 1000
-        input_df['BP_age_ratio']      = input_df['RestingBP'] / input_df['Age']
-        input_df['MaxHR_Age_diff']    = (220 - input_df['Age']) - input_df['MaxHR']
-        input_df['Oldpeak_sq']        = input_df['Oldpeak'] ** 2
-        input_df['is_elderly']        = (input_df['Age'] >= 60).astype(int)
-        input_df['high_chol']         = (input_df['Cholesterol'] >= 200).astype(int)
-        input_df['exercise_capacity'] = input_df['MaxHR'] / (input_df['Age'] + 1)
+        # 1. Winsorize — pakai clip_bounds dari training
+        num_cols = ['Age', 'RestingBP', 'Cholesterol', 'MaxHR', 'Oldpeak']
+        for col in num_cols:
+            if col in clip_bounds:
+                low, high = clip_bounds[col]
+                input_df[col] = input_df[col].clip(low, high)
 
-        # Prediksi
-        prob_positive_raw = selected_model.predict_proba(input_df)[0][1]
+        # 2. Encode — pakai preprocessor yang sudah di-fit
+        input_enc = preprocessor.transform(input_df)
+
+        # 3. Scale hanya untuk SVM
+        if use_scaler:
+            input_final = scaler.transform(input_enc)
+        else:
+            input_final = input_enc
+
+        # 4. Prediksi
+        prob_positive_raw = selected_model.predict_proba(input_final)[0][1]
         prob_positive     = prob_positive_raw * 100
-        pred              = int(prob_positive_raw >= selected_threshold)
+        pred              = int(prob_positive_raw >= 0.5)
 
         col_r1, col_r2 = st.columns([1, 1])
         with col_r1:
             if pred == 1:
-                st.error(f"⚠️ **Risiko Penyakit Jantung Terdeteksi**")
-                st.write(f"Model: **{selected_label}** | Threshold: `{selected_threshold:.2f}`")
+                st.error("⚠️ **Risiko Penyakit Jantung Terdeteksi**")
+                st.write(f"Model: **{selected_label}**")
                 st.progress(int(prob_positive))
                 st.write(f"Probabilitas risiko: **{prob_positive:.1f}%**")
             else:
-                st.success(f"✅ **Tidak Terdeteksi Risiko Penyakit Jantung**")
-                st.write(f"Model: **{selected_label}** | Threshold: `{selected_threshold:.2f}`")
+                st.success("✅ **Tidak Terdeteksi Risiko Penyakit Jantung**")
+                st.write(f"Model: **{selected_label}**")
                 st.progress(int(100 - prob_positive))
                 st.write(f"Probabilitas normal: **{100 - prob_positive:.1f}%**")
 
@@ -261,14 +237,17 @@ if predict_btn:
                 "Nyeri Dada"    : chest_pain,
                 "Tekanan Darah" : f"{resting_bp} mmHg",
                 "Kolesterol"    : f"{cholesterol} mg/dL",
-                "Gula Darah"    : f"{'Ya' if fasting_bs == '1' else 'Tidak'}",
+                "Gula Darah"    : "Ya" if fasting_bs == "1" else "Tidak",
                 "Resting ECG"   : resting_ecg,
                 "Max HR"        : max_hr,
                 "Ex. Angina"    : exercise_angina,
                 "Oldpeak"       : oldpeak,
                 "ST Slope"      : st_slope,
             }
-            st.dataframe(pd.DataFrame(display_data.items(), columns=["Parameter", "Nilai"]),
-                         hide_index=True, use_container_width=True)
+            st.dataframe(
+                pd.DataFrame(display_data.items(), columns=["Parameter", "Nilai"]),
+                hide_index=True,
+                use_container_width=True
+            )
 
         st.caption("⚠️ Disclaimer: Hasil prediksi ini hanya bersifat informatif dan tidak menggantikan diagnosis medis profesional.")

@@ -243,32 +243,40 @@ model_map = {
 }
 best_model, _ = model_map[best_label]
 
-#Simpan model terbaik
+# Simpan model terbaik
 joblib.dump(best_model, os.path.join(SAVE_DIR, "best_model.pkl"))
-print(f"\n✅ Model terbaik ({best_label}) disimpan → {SAVE_DIR}/best_model.pkl")
+print(f"\n[OK] Model terbaik ({best_label}) disimpan -> {SAVE_DIR}/best_model.pkl")
 
-# Simpan scaler (selalu dibutuhkan untuk SVM; disimpan sekaligus untuk RF jaga-jaga)
+# Simpan Tuned SVM & Tuned RF secara terpisah (untuk pilihan di app.py)
+joblib.dump(search_svm, os.path.join(SAVE_DIR, "tuned_svm.pkl"))
+print(f"[OK] Tuned SVM disimpan -> {SAVE_DIR}/tuned_svm.pkl")
+
+joblib.dump(search_rf, os.path.join(SAVE_DIR, "tuned_rf.pkl"))
+print(f"[OK] Tuned RF disimpan -> {SAVE_DIR}/tuned_rf.pkl")
+
+# Simpan scaler (selalu dibutuhkan untuk SVM)
 joblib.dump(scaler, os.path.join(SAVE_DIR, "scaler.pkl"))
-print(f"✅ Scaler disimpan → {SAVE_DIR}/scaler.pkl")
+print(f"[OK] Scaler disimpan -> {SAVE_DIR}/scaler.pkl")
 
-joblib.dump(preprocessor,  os.path.join(SAVE_DIR, "preprocessor.pkl")) 
-print(f"✅ preprocessor disimpan → {SAVE_DIR}/preprocessor.pkl")
+joblib.dump(preprocessor, os.path.join(SAVE_DIR, "preprocessor.pkl"))
+print(f"[OK] Preprocessor disimpan -> {SAVE_DIR}/preprocessor.pkl")
 
 # Simpan nama fitur agar urutan kolom konsisten saat prediksi di Streamlit
-feature_names = list(X.columns)
-joblib.dump(feature_names, os.path.join(SAVE_DIR, "feature_names.pkl"))
-print(f"✅ Feature names disimpan → {SAVE_DIR}/feature_names.pkl")
+feature_names_encoded = feature_names   # sudah didefinisi sebelumnya
+joblib.dump(feature_names_encoded, os.path.join(SAVE_DIR, "feature_names.pkl"))
+print(f"[OK] Feature names disimpan -> {SAVE_DIR}/feature_names.pkl")
 
 # Simpan label model terbaik (untuk referensi di Streamlit)
 joblib.dump(best_label, os.path.join(SAVE_DIR, "best_label.pkl"))
-print(f"✅ Best label disimpan → {SAVE_DIR}/best_label.pkl")
+print(f"[OK] Best label disimpan -> {SAVE_DIR}/best_label.pkl")
 
-joblib.dump(clip_bounds,   os.path.join(SAVE_DIR, "clip_bounds.pkl")) 
-print(f"✅ clip_bounds disimpan → {SAVE_DIR}/clip_bounds.pkl")
+joblib.dump(clip_bounds, os.path.join(SAVE_DIR, "clip_bounds.pkl"))
+print(f"[OK] clip_bounds disimpan -> {SAVE_DIR}/clip_bounds.pkl")
 
-# Verifikasi — load ulang dan cek
+# Verifikasi - load ulang dan cek
 _model_check = joblib.load(os.path.join(SAVE_DIR, "best_model.pkl"))
-print(f"\n🔍 Verifikasi load ulang: {type(_model_check).__name__} — OK")
+print(f"\n[CHECK] Verifikasi load ulang: {type(_model_check).__name__} - OK")
+
 
 """ ================= Visualisasi =================  """
 # ── Visualisasi 1: Confusion Matrix Baseline ──────────────────
