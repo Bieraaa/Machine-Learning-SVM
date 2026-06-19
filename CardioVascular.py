@@ -26,6 +26,7 @@ print(df.isnull().sum().sum())
 # Hapus duplikat
 df.drop_duplicates(inplace=True)
 print(f"\nShape setelah drop duplikat: {df.shape}")
+print(df.head())
 
 # Cek Distribusi data
 print("\nDistribusi target (HeartDisease):")
