@@ -124,7 +124,7 @@ parameter_RF = {
     'min_samples_split' : [2, 5],
     'min_samples_leaf' : [1, 2],
     'max_features' : ['sqrt'],
-    'class_weight'     : [None]
+    'class_weight'   : [ None]
 }
 
 #---------------- Randomized Search -----------------------
@@ -137,7 +137,7 @@ search_svm = RandomizedSearchCV(
 
 search_rf = RandomizedSearchCV(
     RandomForestClassifier(random_state=42),
-    parameter_RF, n_iter=100, cv=5,
+    parameter_RF, n_iter=60, cv=5,
     scoring= 'roc_auc', random_state=42, n_jobs= -1, refit=True
 )
 
