@@ -170,7 +170,7 @@ parameter_RF = {
     'max_depth' : [None, 10, 15],
     'min_samples_split' : [2, 5],
     'min_samples_leaf' : [1, 2],
-    'max_features' : ['sqrt'],
+    'max_features' : ['sqrt','log2'],
     'class_weight'   : [ None]
 }
 
