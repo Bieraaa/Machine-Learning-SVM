@@ -1,3 +1,16 @@
+# =============================================================================
+# app.py
+# =============================================================================
+# Aplikasi web Streamlit untuk prediksi risiko penyakit kardiovaskular.
+#
+# Alur kerja:
+#   1. Load & bersihkan data heart.csv
+#   2. Bangun & latih pipeline SVM dan Random Forest
+#   3. Hyperparameter tuning dengan RandomizedSearchCV
+#   4. Tampilkan hasil evaluasi model (metrik & visualisasi)
+#   5. Prediksi risiko untuk pasien baru berdasarkan input sidebar
+# =============================================================================
+
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -272,10 +285,10 @@ def plot_metric_comparison(acc_svm, pre_svm, rec_svm, f1_svm, auc_svm,
 
 df = load_and_clean_data()
 
-with st.spinner("⏳ Melatih model baseline (SVM & Random Forest)..."):
+with st.spinner("Melatih model baseline (SVM & Random Forest)..."):
     pipeline_svm, pipeline_rf, X_train, X_test, y_train, y_test = build_and_train_pipelines(df)
 
-with st.spinner("⏳ Melakukan hyperparameter tuning... (mungkin butuh beberapa menit pertama kali)"):
+with st.spinner("Melakukan hyperparameter tuning... (mungkin butuh beberapa menit pertama kali)"):
     best_svm_pipeline, best_rf_pipeline, rs_svm, rs_rf = tune_models(
         pipeline_svm, pipeline_rf, X_train, y_train
     )
@@ -297,18 +310,14 @@ y_pred_rf, y_prob_rf, acc_rf, pre_rf, rec_rf, f1_rf, auc_rf = evaluate_baseline(
 # 8. Tampilan Hasil Evaluasi di Streamlit
 # ============================================================
 
-st.header("📊 Hasil Evaluasi Model")
+st.header("Hasil Evaluasi Model")
 
-# Tabel ringkasan metrik
 col1, col2 = st.columns(2)
 
 with col1:
-    st.subheader("🔵 Tuned SVM")
-    
-    # Format parameter agar lebih rapi (hilangkan 'classifier__' dan kurung kurawal)
+    st.subheader("Tuned SVM")
     formatted_svm_params = ", ".join([f"**{k.replace('classifier__', '')}**: {v}" for k, v in rs_svm.best_params_.items()])
     st.write(f"Parameter Terbaik: {formatted_svm_params}")
-    
     st.metric("Accuracy",  f"{acc_svm:.4f}")
     st.metric("Precision", f"{pre_svm:.4f}")
     st.metric("Recall",    f"{rec_svm:.4f}")
@@ -316,11 +325,9 @@ with col1:
     st.metric("ROC-AUC",   f"{auc_svm:.4f}")
 
 with col2:
-    st.subheader("🟢 Tuned Random Forest")
-    
+    st.subheader("Tuned Random Forest")
     formatted_rf_params = ", ".join([f"**{k.replace('classifier__', '')}**: {v}" for k, v in rs_rf.best_params_.items()])
     st.write(f"Parameter Terbaik: {formatted_rf_params}")
-    
     st.metric("Accuracy",  f"{acc_rf:.4f}")
     st.metric("Precision", f"{pre_rf:.4f}")
     st.metric("Recall",    f"{rec_rf:.4f}")
@@ -328,7 +335,7 @@ with col2:
     st.metric("ROC-AUC",   f"{auc_rf:.4f}")
 
 # Visualisasi
-st.header("📈 Visualisasi Evaluasi")
+st.header("Visualisasi Evaluasi")
 
 tab1, tab2, tab3 = st.tabs(["Confusion Matrix", "ROC Curve", "Perbandingan Metrik"])
 
@@ -353,10 +360,10 @@ with tab3:
 # 9. Prediksi Individual Pasien
 # ============================================================
 
-st.header("🩺 Prediksi Risiko Pasien Baru")
+st.header("Prediksi Risiko Pasien Baru")
 
 with st.sidebar:
-    st.header("📝 Masukkan Data Pasien")
+    st.header("Masukkan Data Pasien")
     model_choice = st.radio(
         "Pilih Model Prediksi:",
         ("Tuned Random Forest (Rekomendasi)", "Tuned SVM")
@@ -376,6 +383,7 @@ with st.sidebar:
 
 
 def build_input_df():
+    """Membangun DataFrame satu baris dari input sidebar pengguna."""
     data = {
         'Age':            age,
         'Sex':            sex,
@@ -579,7 +587,7 @@ input_df = build_input_df()
 st.subheader("Data Pasien Saat Ini")
 st.write(input_df)
 
-if st.button("🔍 Lakukan Prediksi", type="primary"):
+if st.button("Lakukan Prediksi", type="primary"):
     # Pilih model sesuai pilihan user
     chosen_model = best_rf_pipeline if "Random Forest" in model_choice else best_svm_pipeline
 
@@ -589,9 +597,9 @@ if st.button("🔍 Lakukan Prediksi", type="primary"):
     st.subheader("Hasil Prediksi")
 
     if prediction[0] == 1:
-        st.error("⚠️ **BERISIKO TINGGI** mengidap Penyakit Kardiovaskular.")
+        st.error("**BERISIKO TINGGI** mengidap Penyakit Kardiovaskular.")
         st.write(f"Tingkat Keyakinan Model: **{prediction_proba[0][1] * 100:.2f}%**")
 
     else:
-        st.success("✅ **NORMAL** (Risiko Rendah Penyakit Kardiovaskular).")
+        st.success("**NORMAL** (Risiko Rendah Penyakit Kardiovaskular).")
         st.write(f"Tingkat Keyakinan Model: **{prediction_proba[0][0] * 100:.2f}%**")

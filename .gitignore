@@ -1,0 +1,21 @@
+# ── Python ──────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+
+# ── Virtual Environment ──────────────────────────────────────────
+.venv/
+venv/
+env/
+
+# ── Model lama (tidak dipakai, digantikan Save_model/) ───────────
+saved_model/
+
+# ── Jupyter Notebook checkpoints ────────────────────────────────
+.ipynb_checkpoints/
+
+# ── OS & Editor ─────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

@@ -1,3 +1,21 @@
+# =============================================================================
+# CardioVascular.py
+# =============================================================================
+# Script utama untuk melatih dan mengevaluasi model Machine Learning
+# dalam memprediksi risiko penyakit jantung (kardiovaskular).
+#
+# Alur kerja:
+#   1. Load Data          → membaca dataset heart.csv
+#   2. Pra-Proses Data    → menangani duplikat, missing value, outlier
+#   3. Data Transformation → encoding kategorikal (One-Hot Encoding)
+#   4. Scaling            → normalisasi fitur numerik (wajib untuk SVM)
+#   5. Baseline Model     → melatih SVM & RF dengan parameter default
+#   6. Hyperparameter Tuning → optimasi parameter dengan RandomizedSearchCV
+#   7. Evaluasi           → menghitung metrik & membandingkan semua model
+#   8. Simpan Model       → menyimpan model & artefak ke folder Save_model/
+#   9. Visualisasi        → membuat grafik confusion matrix, ROC, & metrik
+# =============================================================================
+
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -12,28 +30,34 @@ from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
 from sklearn.metrics import (accuracy_score, precision_score, recall_score,f1_score, roc_auc_score, roc_curve,confusion_matrix, classification_report)
 
-""" ================= Load Data =================  """
+# =============================================================================
+# 1. LOAD DATA
+# =============================================================================
+# Membaca dataset Heart Failure Prediction dari file CSV
 df = pd.read_csv("heart.csv")
 print(f"Shape awal: {df.shape}\n")
 print(df.head())
 
-""" ================= Pra-Proses Data =================  """
+# =============================================================================
+# 2. PRA-PROSES DATA
+# =============================================================================
 
-# Missing Values
+# Cek missing values — memastikan tidak ada nilai kosong
 print(df.isnull().sum())        
 print(df.isnull().sum().sum()) 
 
-# Hapus duplikat
+# Hapus duplikat — menghindari data ganda yang dapat memengaruhi pelatihan
 df.drop_duplicates(inplace=True)
 print(f"\nShape setelah drop duplikat: {df.shape}")
 print(df.head())
 
-# Cek Distribusi data
+# Cek Distribusi data — memastikan proporsi kelas target (HeartDisease)
 print("\nDistribusi target (HeartDisease):")
 print(df['HeartDisease'].value_counts())
 print(df['HeartDisease'].value_counts(normalize=True).round(3))
 
-# trainsplit
+# Train-Test Split dilakukan SEBELUM preprocessing untuk menghindari data leakage
+# stratify=y memastikan proporsi kelas seimbang di train & test
 X = df.drop(columns='HeartDisease')
 y = df['HeartDisease']
 
@@ -42,7 +66,8 @@ X_train, X_test, y_train, y_test = train_test_split(
 )
 print(f"\nTrain size: {X_train.shape} | Test size: {X_test.shape}")
 
-# Nilai 0 tidak valid → ganti median
+# Nilai 0 pada Cholesterol & RestingBP tidak valid secara medis
+# → diganti dengan median dari data training (bukan seluruh data)
 for col in ['Cholesterol', 'RestingBP']:
     # Hitung median HANYA dari train (exclude nilai 0)
     median_train = X_train.loc[X_train[col] != 0, col].median()
@@ -50,7 +75,8 @@ for col in ['Cholesterol', 'RestingBP']:
     X_test[col]  = X_test[col].replace(0, median_train)   # pakai median train
     print(f"Median {col} (dari train): {median_train:.2f}")
 
-# Winsorize outlier (1%–99%)
+# Winsorize outlier pada rentang 1%–99% dari data training
+# Teknik ini membatasi nilai ekstrem tanpa menghapus baris data
 num_cols = ['Age', 'RestingBP', 'Cholesterol', 'MaxHR', 'Oldpeak']
 clip_bounds = {}
 
@@ -65,9 +91,13 @@ print("\nWinsorize bounds (dari train):")
 for col, (lo, hi) in clip_bounds.items():
     print(f"  {col}: [{lo:.2f}, {hi:.2f}]")
 
-""" ================= Data Transformation =================  """
+# =============================================================================
+# 3. DATA TRANSFORMATION — One-Hot Encoding
+# =============================================================================
 
-# Encoding kategorikal —  One-Hot Encoding
+# One-Hot Encoding pada fitur kategorikal
+# drop='first' menghindari multikolinearitas (dummy variable trap)
+# handle_unknown='ignore' menangani kategori baru saat inferensi
 cat_cols = ['Sex', 'ChestPainType', 'RestingECG', 'ExerciseAngina', 'ST_Slope']
 num_features = [c for c in X_train.columns if c not in cat_cols]
 
@@ -86,29 +116,42 @@ feature_names = num_features + list(ohe_feature_names)
 print(f"\nJumlah fitur setelah encoding: {len(feature_names)}")
 print(f"Fitur: {feature_names}")
 
-""" ================= Scalling =================  """
+# =============================================================================
+# 4. SCALING — StandardScaler
+# =============================================================================
 
-# Scaling — wajib untuk SVM
+# StandardScaler wajib untuk SVM karena algoritma ini sensitif terhadap skala fitur
+# fit hanya dari data training, transform diterapkan ke keduanya
 scaler     = StandardScaler()
 X_train_sc = scaler.fit_transform(X_train_enc)
 X_test_sc  = scaler.transform (X_test_enc)
 
 print(f"\nTrain scaled: {X_train_sc.shape} | Test scaled: {X_test_sc.shape}")
 
-""" ================= Baseline model =================  """
-# --- Baseline SVM ---
+# =============================================================================
+# 5. BASELINE MODEL
+# =============================================================================
+
+# Baseline SVM — menggunakan parameter default sebagai pembanding awal
+# SVM menggunakan data yang sudah di-scale (X_train_sc)
 svm_base = SVC(kernel='rbf', C=1.0, gamma='scale', probability=True, random_state=42)
 svm_base.fit(X_train_sc, y_train)
 print("\nBaseline SVM selesai dilatih.")
 
-# --- Baseline Random Forest ---
+# Baseline Random Forest — menggunakan parameter default
+# RF tidak memerlukan scaling, menggunakan data encoded (X_train_enc)
 rf_base = RandomForestClassifier(n_estimators=100, random_state=42)
 rf_base.fit(X_train_enc, y_train)
 print("Baseline Random Forest selesai dilatih.")
 
-""" ================= Hyperparamater Search Space =================  """
-# SVM: C (keketatan batas), gamma (pengaruh data point), kernel (bentuk pemisah)
+# =============================================================================
+# 6. HYPERPARAMETER TUNING — RandomizedSearchCV
+# =============================================================================
 
+# Search space SVM:
+# - C      : mengontrol trade-off antara margin dan kesalahan klasifikasi
+# - gamma  : menentukan jangkauan pengaruh satu data point
+# - kernel : fungsi kernel yang menentukan bentuk batas keputusan
 parameter_SVM = {
     'C' : [0.1, 1, 5, 10, 50, 100],
     'gamma' : ['scale', 'auto', 0.001, 0.01, 0.1],
@@ -116,8 +159,12 @@ parameter_SVM = {
     'class_weight': ['balanced', None]
 }
 
-# RF: n_estimators (jumlah pohon), max_depth (kedalaman), dll
-
+# Search space Random Forest:
+# - n_estimators     : jumlah pohon keputusan
+# - max_depth        : kedalaman maksimum setiap pohon
+# - min_samples_split: jumlah minimum sampel untuk membagi node
+# - min_samples_leaf : jumlah minimum sampel di setiap daun
+# - max_features     : jumlah fitur yang dipertimbangkan setiap split
 parameter_RF = {
     'n_estimators' : [ 200, 300, 500],
     'max_depth' : [None, 10, 15],
@@ -128,6 +175,9 @@ parameter_RF = {
 }
 
 #---------------- Randomized Search -----------------------
+# scoring='roc_auc' dipilih karena lebih robust untuk dataset dengan kelas tidak seimbang
+# cv=5 menggunakan 5-Fold Cross Validation
+# n_jobs=-1 memanfaatkan semua core CPU untuk mempercepat proses
 
 search_svm = RandomizedSearchCV(
     SVC(probability=True, random_state=42),
@@ -156,9 +206,26 @@ print(search_svm.best_params_)
 print("\n -- Best parameter RF -- ")
 print(search_rf.best_params_)
 
-""" ================= Evaluasi =================  """
+# =============================================================================
+# 7. EVALUASI MODEL
+# =============================================================================
 
 def evaluate_model(model, X_te, y_te, label, params):
+    """
+    Mengevaluasi performa model klasifikasi dan mencetak hasilnya.
+
+    Parameters
+    ----------
+    model  : estimator sklearn yang sudah di-fit
+    X_te   : array-like, data fitur test
+    y_te   : array-like, label target test
+    label  : str, nama model untuk ditampilkan
+    params : dict, parameter model yang digunakan
+
+    Returns
+    -------
+    tuple : (y_pred, y_prob, accuracy, precision, recall, f1, auc)
+    """
     y_pred = model.predict(X_te)
     y_prob = model.predict_proba(X_te)[:, 1]
 
@@ -212,7 +279,9 @@ y_pred_rf_tuned, y_prob_rf_tuned, acc_rf_t, pre_rf_t, rec_rf_t, f1_rf_t, auc_rf_
     params=search_rf.best_params_
 )
 
-""" ================= Tabel Perbandingan =================  """
+# =============================================================================
+# 8. TABEL PERBANDINGAN & PILIH MODEL TERBAIK
+# =============================================================================
 
 df_compare = pd.DataFrame({
     "Baseline SVM" : [acc_svm_b, pre_svm_b, rec_svm_b, f1_svm_b, auc_svm_b],
@@ -225,11 +294,14 @@ df_compare = df_compare.round(4)
 print("\n-- Perbandingan Baseline vs Tuned --")
 print(df_compare.to_string())
 
-# ── Pilih model terbaik dari SEMUA 4 model (berdasarkan ROC-AUC) ──
+# Pilih model terbaik dari SEMUA 4 model berdasarkan ROC-AUC
+# ROC-AUC dipilih karena lebih informatif daripada accuracy untuk kelas tidak seimbang
 best_label = df_compare.loc['ROC-AUC'].idxmax()
 print(f"\nModel terbaik berdasarkan ROC-AUC: {best_label}")
 
-""" ================= Simpan Model =================  """
+# =============================================================================
+# 9. SIMPAN MODEL & ARTEFAK
+# =============================================================================
 
 SAVE_DIR = "Save_model"
 os.makedirs(SAVE_DIR, exist_ok= True)
@@ -245,33 +317,36 @@ best_model, _ = model_map[best_label]
 
 #Simpan model terbaik
 joblib.dump(best_model, os.path.join(SAVE_DIR, "best_model.pkl"))
-print(f"\n✅ Model terbaik ({best_label}) disimpan → {SAVE_DIR}/best_model.pkl")
+print(f"\n[OK] Model terbaik ({best_label}) disimpan -> {SAVE_DIR}/best_model.pkl")
 
 # Simpan scaler (selalu dibutuhkan untuk SVM; disimpan sekaligus untuk RF jaga-jaga)
 joblib.dump(scaler, os.path.join(SAVE_DIR, "scaler.pkl"))
-print(f"✅ Scaler disimpan → {SAVE_DIR}/scaler.pkl")
+print(f"[OK] Scaler disimpan -> {SAVE_DIR}/scaler.pkl")
 
 joblib.dump(preprocessor,  os.path.join(SAVE_DIR, "preprocessor.pkl")) 
-print(f"✅ preprocessor disimpan → {SAVE_DIR}/preprocessor.pkl")
+print(f"[OK] preprocessor disimpan -> {SAVE_DIR}/preprocessor.pkl")
 
 # Simpan nama fitur agar urutan kolom konsisten saat prediksi di Streamlit
 feature_names = list(X.columns)
 joblib.dump(feature_names, os.path.join(SAVE_DIR, "feature_names.pkl"))
-print(f"✅ Feature names disimpan → {SAVE_DIR}/feature_names.pkl")
+print(f"[OK] Feature names disimpan -> {SAVE_DIR}/feature_names.pkl")
 
 # Simpan label model terbaik (untuk referensi di Streamlit)
 joblib.dump(best_label, os.path.join(SAVE_DIR, "best_label.pkl"))
-print(f"✅ Best label disimpan → {SAVE_DIR}/best_label.pkl")
+print(f"[OK] Best label disimpan -> {SAVE_DIR}/best_label.pkl")
 
 joblib.dump(clip_bounds,   os.path.join(SAVE_DIR, "clip_bounds.pkl")) 
-print(f"✅ clip_bounds disimpan → {SAVE_DIR}/clip_bounds.pkl")
+print(f"[OK] clip_bounds disimpan -> {SAVE_DIR}/clip_bounds.pkl")
 
-# Verifikasi — load ulang dan cek
+# Verifikasi - load ulang dan cek
 _model_check = joblib.load(os.path.join(SAVE_DIR, "best_model.pkl"))
-print(f"\n🔍 Verifikasi load ulang: {type(_model_check).__name__} — OK")
+print(f"\n[CHECK] Verifikasi load ulang: {type(_model_check).__name__} - OK")
 
-""" ================= Visualisasi =================  """
-# ── Visualisasi 1: Confusion Matrix Baseline ──────────────────
+# =============================================================================
+# 10. VISUALISASI
+# =============================================================================
+
+# Visualisasi 1: Confusion Matrix Baseline
 fig1, axes1 = plt.subplots(1, 2, figsize=(12, 5))
 fig1.suptitle('Confusion Matrix — Baseline SVM vs Baseline Random Forest',fontsize=13, fontweight='bold')
 
@@ -292,7 +367,7 @@ plt.savefig('baseline_confusion_matrix.png', dpi=150, bbox_inches='tight')
 plt.show()
 print("Saved: baseline_confusion_matrix.png")
 
-# ── Visualisasi 2: Confusion Matrix Tuned ────────────────────
+# Visualisasi 2: Confusion Matrix Tuned
 fig2, axes2 = plt.subplots(1, 2, figsize=(12, 5))
 fig2.suptitle('Confusion Matrix — Tuned SVM vs Tuned RF', fontsize=13, fontweight='bold')
 
@@ -315,7 +390,7 @@ plt.savefig('tuned_confusion_matrix.png', dpi=150, bbox_inches='tight')
 plt.show()
 print("Saved: tuned_confusion_matrix.png")
 
-# ── Visualisasi 3: ROC Curve — Baseline vs Tuned (semua model) ─
+# Visualisasi 3: ROC Curve — Baseline vs Tuned (semua model)
 plt.figure(figsize=(9, 6))
 fpr_svm_b, tpr_svm_b, _ = roc_curve(y_test, y_prob_svm_base)
 fpr_rf_b,  tpr_rf_b,  _ = roc_curve(y_test, y_prob_rf_base)
@@ -339,7 +414,7 @@ plt.savefig('roc_curve_all.png', dpi=150, bbox_inches='tight')
 plt.show()
 print("Saved: roc_curve_all.png")
 
-# ── Visualisasi 4: Bar Chart Perbandingan Semua Metrik ────────
+# Visualisasi 4: Bar Chart Perbandingan Semua Metrik
 fig, ax = plt.subplots(figsize=(12, 5))
 x_pos  = np.arange(len(df_compare.index))
 width  = 0.2
@@ -364,18 +439,18 @@ plt.savefig('comparison_metrics.png', dpi=150, bbox_inches='tight')
 plt.show()
 print("Saved: comparison_metrics.png")
 
-""" =========================================================== """
+# =============================================================================
 
-print("\n✅ Selesai! File yang disimpan:")
+print("\n Selesai! File yang disimpan:")
 print("   [Model]")
-print("   → Save_model/best_model.pkl")
-print("   → Save_model/scaler.pkl")
-print("   → Save_model/preprocessor.pkl")
-print("   → Save_model/feature_names.pkl")
-print("   → Save_model/best_label.pkl")
-print("   → Save_model/clip_bounds.pkl")
+print("   -> Save_model/best_model.pkl")
+print("   -> Save_model/scaler.pkl")
+print("   -> Save_model/preprocessor.pkl")
+print("   -> Save_model/feature_names.pkl")
+print("   -> Save_model/best_label.pkl")
+print("   -> Save_model/clip_bounds.pkl")
 print("   [Visualisasi]")
-print("   → baseline_confusion_matrix.png")
-print("   → tuned_confusion_matrix.png")
-print("   → roc_curve_all.png")
-print("   → comparison_metrics.png")
+print("   -> baseline_confusion_matrix.png")
+print("   -> tuned_confusion_matrix.png")
+print("   -> roc_curve_all.png")
+print("   -> comparison_metrics.png")
